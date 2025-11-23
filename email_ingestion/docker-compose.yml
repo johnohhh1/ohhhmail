@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  email-ingestion:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: email-ingestion-service
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./attachments:/app/attachments
+      - ./logs:/app/logs
+    env_file:
+      - .env
+    environment:
+      - ATTACHMENT_STORAGE_PATH=/app/attachments
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - email-network
+
+networks:
+  email-network:
+    driver: bridge
+
+volumes:
+  attachments:
+    driver: local
+  logs:
+    driver: local

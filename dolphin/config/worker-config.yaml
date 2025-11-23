@@ -1,0 +1,360 @@
+# Dolphin Worker Node Configuration
+# Configuration for distributed worker nodes
+version: '1.0'
+
+# Worker Node Identification
+worker:
+  id: ${WORKER_ID:-worker-1}
+  name: ${WORKER_NAME:-dolphin-worker-default}
+  worker_group: ${WORKER_GROUP:-cpu_workers}
+  environment: ${ENVIRONMENT:-development}
+
+# Scheduling Configuration
+scheduling:
+  # Polling configuration
+  task_polling:
+    interval: ${POLL_INTERVAL:-5}
+    timeout: 30
+    queue_name: dolphin.tasks
+    max_batch_size: 10
+
+  # Task prefetching
+  prefetch:
+    enabled: true
+    count: 2
+
+  # Task claiming strategy
+  claiming_strategy: fifo  # First-in-first-out
+
+# Task Execution Configuration
+task_execution:
+  # Worker concurrency
+  max_concurrent_tasks: ${MAX_CONCURRENT:-2}
+  task_timeout: ${TASK_TIMEOUT:-300}
+  heartbeat_interval: 10
+
+  # Execution environment
+  isolation_level: process  # process, docker, kubernetes
+  sandbox_enabled: true
+
+  # Memory management
+  max_memory_per_task: ${MAX_MEMORY_PER_TASK:-2Gi}
+  memory_check_interval: 5
+
+  # Disk space
+  temp_dir: ${TEMP_DIR:-/tmp/dolphin}
+  max_temp_space: ${MAX_TEMP_SPACE:-5Gi}
+
+# Resource Management
+resources:
+  # CPU allocation
+  cpu:
+    cores: ${CPU_CORES:-4}
+    limit: ${CPU_LIMIT:-4000m}
+    request: ${CPU_REQUEST:-2000m}
+
+  # Memory allocation
+  memory:
+    total: ${MEMORY_TOTAL:-8Gi}
+    limit: ${MEMORY_LIMIT:-8Gi}
+    request: ${MEMORY_REQUEST:-4Gi}
+
+  # GPU configuration (if applicable)
+  gpu:
+    enabled: ${GPU_ENABLED:-false}
+    count: ${GPU_COUNT:-0}
+    gpu_memory: ${GPU_MEMORY:-10Gi}
+    cuda_version: ${CUDA_VERSION:-12.2}
+
+  # Disk space
+  disk:
+    path: ${DISK_PATH:-/data/worker}
+    limit: ${DISK_LIMIT:-50Gi}
+
+# Health Check Configuration
+health_check:
+  enabled: true
+  interval: 30
+  timeout: 10
+  port: 9091
+
+  # Health metrics
+  metrics:
+    - cpu_usage
+    - memory_usage
+    - disk_usage
+    - task_count
+    - task_success_rate
+    - task_failure_rate
+
+  # Alerts
+  alerts:
+    cpu_threshold: 90
+    memory_threshold: 85
+    disk_threshold: 90
+    failure_rate_threshold: 20
+
+# Communication Configuration
+communication:
+  # Server connection
+  server:
+    url: ${DOLPHIN_SERVER_URL:-http://dolphin-server:12345}
+    timeout: 30
+    retry_attempts: 3
+    backoff_type: exponential
+
+  # Message broker
+  message_broker:
+    provider: nats
+    servers:
+      - ${NATS_URL:-nats://nats:4222}
+    timeout: 10
+    reconnect_interval: 5
+
+  # Result reporting
+  result_reporting:
+    enabled: true
+    batch_size: 10
+    flush_interval: 5
+    storage: message_broker
+
+# Logging Configuration
+logging:
+  level: ${LOG_LEVEL:-INFO}
+  format: json
+
+  # Log output
+  output:
+    console:
+      enabled: true
+      format: json
+    file:
+      enabled: ${FILE_LOGGING_ENABLED:-true}
+      path: ${LOG_FILE_PATH:-/var/log/dolphin-worker}
+      max_size: 100  # MB
+      max_backups: 5
+      max_age: 30  # days
+      compress: true
+
+  # Log aggregation
+  aggregation:
+    enabled: ${LOG_AGGREGATION_ENABLED:-false}
+    provider: ${LOG_AGGREGATION_PROVIDER:-}
+    endpoint: ${LOG_AGGREGATION_ENDPOINT:-}
+
+# Checkpoint and Recovery
+checkpoints:
+  # Checkpoint configuration
+  enabled: true
+  interval: 30  # seconds
+  storage: ${CHECKPOINT_STORAGE:-database}
+
+  # Recovery
+  recovery:
+    enabled: true
+    restore_on_startup: true
+    max_recovery_time: 300
+
+  # Checkpoint cleanup
+  cleanup:
+    enabled: true
+    retention_days: 7
+
+# Plugin Configuration
+plugins:
+  # UI-TARS integration
+  ui_tars:
+    enabled: true
+    url: ${UI_TARS_URL:-http://uitars:8080}
+    timeout: 30
+    checkpoint_enabled: true
+    screenshot_enabled: true
+
+    # Screenshot configuration
+    screenshots:
+      frequency: on_error  # on_error, periodic, never
+      interval: 60  # seconds if periodic
+      storage: ${SCREENSHOT_STORAGE:-file}
+      path: ${SCREENSHOT_PATH:-/data/screenshots}
+      retention_days: 7
+
+  # Custom plugins
+  custom_plugins:
+    - name: task_logger
+      enabled: true
+      config: {}
+
+# Environment Variables
+environment:
+  # Operator environment
+  PYTHONUNBUFFERED: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
+  # Custom environment variables
+  CUSTOM_ENV_VARS: ${CUSTOM_ENV_VARS:-}
+
+# Security Configuration
+security:
+  # TLS configuration
+  tls:
+    enabled: ${TLS_ENABLED:-false}
+    cert_path: ${TLS_CERT_PATH:-/etc/dolphin/tls/cert.pem}
+    key_path: ${TLS_KEY_PATH:-/etc/dolphin/tls/key.pem}
+    verify: true
+
+  # Authentication
+  auth:
+    enabled: true
+    token: ${WORKER_AUTH_TOKEN}
+    token_refresh_interval: 3600
+
+  # Secret management
+  secrets:
+    provider: ${SECRETS_PROVIDER:-env}
+    path: ${SECRETS_PATH:-/etc/secrets}
+
+# Performance Tuning
+performance:
+  # Connection pooling
+  connection_pool_size: 10
+
+  # Request batching
+  batch_processing:
+    enabled: true
+    batch_size: 10
+    timeout: 5
+
+  # Caching
+  cache:
+    enabled: true
+    ttl: 300
+
+# Retry Configuration
+retry:
+  # Global retry settings
+  max_retries: 3
+  backoff_type: exponential
+  initial_delay: 1
+  max_delay: 60
+  multiplier: 2
+
+  # Jitter to avoid thundering herd
+  jitter:
+    enabled: true
+    factor: 0.1
+
+# Task Result Handling
+result_handling:
+  # Result storage
+  storage: message_broker
+  timeout: 30
+  max_retries: 3
+
+  # Failed task handling
+  failed_task:
+    report_immediately: true
+    move_to_deadletter: true
+    deadletter_queue: dolphin.deadletter
+
+# Graceful Shutdown
+shutdown:
+  grace_period: 30  # seconds
+  wait_for_tasks: true
+  drain_queue: true
+
+# Development Settings
+development:
+  debug: ${DEBUG:-false}
+  mock_agents: ${MOCK_AGENTS:-false}
+  log_execution_details: ${LOG_EXECUTION_DETAILS:-false}
+
+# Worker Groups Definition
+worker_groups:
+  # CPU workers configuration
+  cpu_workers:
+    description: CPU-optimized workers
+    max_tasks: 8
+    task_types:
+      - triage
+      - deadline
+      - task_categorizer
+    resource_profile: cpu_optimized
+
+  # GPU workers configuration
+  gpu_workers:
+    description: GPU-optimized workers
+    max_tasks: 4
+    task_types:
+      - vision
+    resource_profile: gpu_optimized
+
+  # Critical workers configuration
+  critical_workers:
+    description: Critical task workers (context agent)
+    max_tasks: 2
+    task_types:
+      - context
+    resource_profile: high_availability
+    strict_sla: true
+    no_fallback: true
+
+# Resource Profiles
+resource_profiles:
+  cpu_optimized:
+    cpu: 4
+    memory: 8Gi
+    disk: 20Gi
+
+  gpu_optimized:
+    cpu: 4
+    memory: 16Gi
+    gpu: 1
+    gpu_memory: 10Gi
+    disk: 50Gi
+
+  high_availability:
+    cpu: 4
+    memory: 8Gi
+    disk: 20Gi
+    priority: high
+    dedicated: true
+
+# Monitoring
+monitoring:
+  # Metrics collection
+  metrics:
+    enabled: true
+    interval: 15
+    port: 9091
+
+  # Prometheus metrics
+  prometheus:
+    enabled: true
+    port: 9091
+    scrape_path: /metrics
+
+  # Custom metrics
+  custom_metrics:
+    - task_execution_time
+    - task_success_rate
+    - resource_utilization
+    - error_rate
+
+# Startup Configuration
+startup:
+  # Initialization steps
+  init_steps:
+    - validate_configuration
+    - check_resources
+    - connect_to_server
+    - restore_checkpoints
+    - start_monitoring
+
+  # Startup timeout
+  timeout: 60
+
+  # Ready check
+  ready_check:
+    enabled: true
+    port: 9091
+    path: /ready

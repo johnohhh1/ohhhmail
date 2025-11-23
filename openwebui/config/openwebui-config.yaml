@@ -1,0 +1,221 @@
+# Open-WebUI Configuration for UI-TARS Embedded Components
+# This config integrates ChiliHead OpsManager components into Open-WebUI
+
+version: "1.0"
+name: "ChiliHead OpsManager v2.1"
+
+# Custom tab configuration
+tabs:
+  - id: "emails"
+    name: "Email Dashboard"
+    icon: "mail"
+    component: "EmailDashboard"
+    path: "/emails"
+    enabled: true
+    order: 1
+
+  - id: "tasks"
+    name: "Task Manager"
+    icon: "check_circle"
+    component: "TaskManager"
+    path: "/tasks"
+    enabled: true
+    order: 2
+
+  - id: "debug"
+    name: "UI-TARS Debug"
+    icon: "bug_report"
+    component: "UITARSDebugPanel"
+    path: "/debug"
+    enabled: true
+    order: 3
+
+  - id: "analytics"
+    name: "Analytics"
+    icon: "analytics"
+    component: "Analytics"
+    path: "/analytics"
+    enabled: true
+    order: 4
+
+  - id: "chat"
+    name: "AI Chat"
+    icon: "chat"
+    component: "DefaultChat"
+    path: "/chat"
+    enabled: true
+    order: 5
+
+# Component loading configuration
+components:
+  base_path: "./openwebui/components"
+  modules:
+    - name: "UITARSDebugPanel"
+      file: "UITARSDebugPanel.tsx"
+      lazy: false
+      preload: true
+
+    - name: "EmailDashboard"
+      file: "EmailDashboard.tsx"
+      lazy: true
+      preload: false
+
+    - name: "TaskManager"
+      file: "TaskManager.tsx"
+      lazy: true
+      preload: false
+
+    - name: "Analytics"
+      file: "Analytics.tsx"
+      lazy: true
+      preload: false
+
+# External service integration
+integrations:
+  dolphin:
+    enabled: true
+    api_url: "http://dolphin:12345/api"
+    ws_url: "ws://dolphin:12345/ws"
+    auth_required: false
+    timeout_ms: 30000
+
+  aubs:
+    enabled: true
+    api_url: "http://aubs:5000/api"
+    auth_required: false
+    timeout_ms: 10000
+
+  ollama:
+    enabled: true
+    base_url: "http://ollama:11434"
+    models:
+      - "llama-3.2-8b-instruct"  # Triage Agent
+      - "oss-120b"  # Context Agent (no fallback)
+
+  redis:
+    enabled: true
+    host: "redis"
+    port: 6379
+    db: 0
+
+  postgres:
+    enabled: true
+    host: "postgres"
+    port: 5432
+    database: "chilihead"
+    username: "chilihead"
+
+  qdrant:
+    enabled: true
+    host: "qdrant"
+    port: 6333
+    collection: "email_vectors"
+
+# API endpoints for components
+api_endpoints:
+  # Email endpoints
+  emails:
+    list: "/api/emails"
+    get: "/api/emails/:id"
+    process: "/api/emails/:id/process"
+
+  # Task endpoints
+  tasks:
+    list: "/api/tasks"
+    get: "/api/tasks/:id"
+    create: "/api/tasks"
+    update: "/api/tasks/:id"
+
+  # Dolphin endpoints
+  dolphin:
+    executions: "/api/dolphin/executions"
+    execution_detail: "/api/dolphin/executions/:id"
+    tasks: "/api/dolphin/tasks"
+    workers: "/api/dolphin/workers"
+
+  # UI-TARS endpoints
+  uitars:
+    sessions: "/api/uitars/sessions"
+    checkpoints: "/api/uitars/checkpoints"
+    screenshot: "/api/uitars/screenshots/:id"
+
+  # Analytics endpoints
+  analytics:
+    agents: "/api/analytics/agents"
+    processing: "/api/analytics/processing"
+    system: "/api/system/health"
+
+# WebSocket configuration
+websockets:
+  enabled: true
+  reconnect_interval: 5000
+  max_reconnect_attempts: 10
+  heartbeat_interval: 30000
+
+  channels:
+    - name: "dolphin_updates"
+      url: "ws://dolphin:12345/ws"
+      auto_reconnect: true
+
+    - name: "email_notifications"
+      url: "ws://aubs:5000/ws/emails"
+      auto_reconnect: true
+
+# UI customization
+ui:
+  theme: "dark"
+  primary_color: "#2196F3"
+  sidebar_width: 280
+  header_height: 64
+
+  # Custom branding
+  branding:
+    logo: "/assets/chilihead-logo.png"
+    favicon: "/assets/favicon.ico"
+    title: "ChiliHead OpsManager"
+
+  # Default views
+  defaults:
+    landing_page: "/emails"
+    items_per_page: 50
+    auto_refresh: true
+    refresh_interval: 10000
+
+# Feature flags
+features:
+  enable_uitars_debug: true
+  enable_real_time_updates: true
+  enable_screenshots: true
+  enable_performance_profiling: true
+  enable_agent_metrics: true
+  enable_email_preview: true
+  enable_task_automation: true
+
+# Authentication (optional)
+auth:
+  enabled: false  # Set to true for production
+  provider: "oauth2"  # or "basic", "jwt"
+  session_timeout: 3600
+
+# Logging configuration
+logging:
+  level: "info"  # debug, info, warn, error
+  format: "json"
+  destinations:
+    - "stdout"
+    - "/var/log/openwebui/app.log"
+
+# Performance settings
+performance:
+  cache_enabled: true
+  cache_ttl: 300
+  lazy_load_components: true
+  virtual_scrolling: true
+  debounce_search: 300
+
+# Development settings
+development:
+  hot_reload: true
+  debug_mode: true
+  mock_data: false
+  verbose_logging: true

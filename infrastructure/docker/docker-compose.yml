@@ -10,6 +10,7 @@ volumes:
   qdrant_data:
   ollama_models:
   dolphin_logs:
+  email_attachments:
 
 services:
   # ========== UI Layer ==========
@@ -141,6 +142,38 @@ services:
     networks:
       - chilihead
     restart: unless-stopped
+
+  # ========== Email Ingestion Service ==========
+
+  email-ingestion:
+    build:
+      context: ../../email_ingestion
+      dockerfile: Dockerfile
+    container_name: chilihead-email-ingestion
+    environment:
+      - GMAIL_EMAIL=${GMAIL_EMAIL}
+      - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD}
+      - IMAP_HOST=${IMAP_HOST:-imap.gmail.com}
+      - IMAP_PORT=${IMAP_PORT:-993}
+      - AUBS_URL=http://aubs:5000
+      - AUBS_API_KEY=${AUBS_API_KEY}
+      - POLLING_INTERVAL=${EMAIL_POLLING_INTERVAL:-60}
+      - ATTACHMENT_STORAGE_PATH=/app/attachments
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./../../email_ingestion:/app:ro
+      - email_attachments:/app/attachments
+    networks:
+      - chilihead
+    depends_on:
+      aubs:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   # ========== AUBS Service ==========
 

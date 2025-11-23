@@ -1,0 +1,50 @@
+{
+  "name": "@chilihead/openwebui-components",
+  "version": "2.1.0",
+  "description": "UI-TARS embedded components for Open-WebUI - ChiliHead OpsManager v2.1",
+  "main": "./components/index.tsx",
+  "types": "./types/index.ts",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint . --ext .ts,.tsx",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "next": "^14.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "@types/react": "^18.3.0",
+    "@types/react-dom": "^18.3.0",
+    "@typescript-eslint/eslint-plugin": "^7.13.0",
+    "@typescript-eslint/parser": "^7.13.0",
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.0",
+    "typescript": "^5.5.0",
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.4"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "keywords": [
+    "ui-tars",
+    "dolphin",
+    "open-webui",
+    "agent-debugging",
+    "email-automation",
+    "restaurant-ops"
+  ],
+  "author": "ChiliHead Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chilihead/ohhhmail.git"
+  }
+}

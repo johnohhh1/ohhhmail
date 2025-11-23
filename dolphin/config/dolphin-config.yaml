@@ -1,0 +1,339 @@
+# Dolphin Scheduler Configuration
+# Server configuration for distributed task orchestration
+version: '1.0'
+
+# Service Configuration
+service:
+  name: dolphin-scheduler
+  environment: ${ENVIRONMENT:-development}
+  log_level: ${LOG_LEVEL:-INFO}
+  port: ${DOLPHIN_PORT:-12345}
+  host: ${DOLPHIN_HOST:-0.0.0.0}
+
+  # Health check configuration
+  health_check:
+    enabled: true
+    interval: 30
+    timeout: 10
+    port: 12346
+
+# Database Configuration
+database:
+  # PostgreSQL connection for state persistence
+  provider: postgresql
+  host: ${DB_HOST:-postgres}
+  port: ${DB_PORT:-5432}
+  username: ${DB_USER:-dolphin}
+  password: ${DB_PASSWORD:-dolphin_secure_password}
+  database: ${DB_NAME:-dolphin_db}
+
+  # Connection pooling
+  pool:
+    min_size: 5
+    max_size: 20
+    connection_timeout: 30
+    idle_timeout: 300
+    max_lifetime: 1800
+
+  # SSL configuration
+  ssl:
+    enabled: ${DB_SSL_ENABLED:-false}
+    mode: ${DB_SSL_MODE:-require}
+    ca_cert: ${DB_CA_CERT:-}
+    client_cert: ${DB_CLIENT_CERT:-}
+    client_key: ${DB_CLIENT_KEY:-}
+
+# Message Broker Configuration
+message_broker:
+  # NATS for inter-service communication
+  provider: nats
+  servers:
+    - ${NATS_URL:-nats://nats:4222}
+
+  # JetStream configuration for durability
+  jetstream:
+    enabled: true
+    max_age: 604800  # 7 days
+    max_bytes: 1073741824  # 1GB
+    replicas: 1
+
+  # Subject configuration
+  subjects:
+    tasks: dolphin.tasks
+    results: dolphin.results
+    heartbeat: dolphin.heartbeat
+    deadletter: dolphin.deadletter
+
+# Worker Groups Configuration
+worker_groups:
+  # CPU-bound tasks
+  cpu_workers:
+    name: cpu_workers
+    description: CPU-optimized workers for general tasks
+    worker_count: ${CPU_WORKERS:-4}
+    max_concurrency: 8
+
+    # Resource allocation
+    resources:
+      cpu: ${CPU_WORKER_CPU:-2000m}
+      memory: ${CPU_WORKER_MEMORY:-2Gi}
+      disk: ${CPU_WORKER_DISK:-10Gi}
+
+    # Task assignment
+    task_types:
+      - triage
+      - deadline
+      - task_categorizer
+
+    # Retry policy
+    retry_policy:
+      max_attempts: 3
+      backoff_type: exponential
+      initial_delay: 1
+      max_delay: 60
+      multiplier: 2
+
+  # GPU-accelerated workers for vision/ML tasks
+  gpu_workers:
+    name: gpu_workers
+    description: GPU-optimized workers for vision and ML tasks
+    worker_count: ${GPU_WORKERS:-2}
+    max_concurrency: 4
+
+    # Resource allocation
+    resources:
+      cpu: ${GPU_WORKER_CPU:-4000m}
+      memory: ${GPU_WORKER_MEMORY:-8Gi}
+      gpu: ${GPU_WORKER_GPU:-1}
+      gpu_memory: ${GPU_WORKER_GPU_MEMORY:-10Gi}
+      disk: ${GPU_WORKER_DISK:-50Gi}
+
+    # Task assignment
+    task_types:
+      - vision
+
+    # Retry policy
+    retry_policy:
+      max_attempts: 3
+      backoff_type: exponential
+      initial_delay: 2
+      max_delay: 120
+      multiplier: 2
+
+  # Critical context workers (no fallback)
+  critical_workers:
+    name: critical_workers
+    description: Dedicated workers for critical context agent
+    worker_count: ${CRITICAL_WORKERS:-2}
+    max_concurrency: 2
+
+    # Resource allocation
+    resources:
+      cpu: ${CRITICAL_WORKER_CPU:-4000m}
+      memory: ${CRITICAL_WORKER_MEMORY:-4Gi}
+      disk: ${CRITICAL_WORKER_DISK:-20Gi}
+
+    # Task assignment
+    task_types:
+      - context
+
+    # Retry policy (strict for critical tasks)
+    retry_policy:
+      max_attempts: 1
+      backoff_type: fixed
+      initial_delay: 0
+      max_delay: 0
+
+# Task Execution Configuration
+task_execution:
+  # Timeout settings
+  default_timeout: ${TASK_TIMEOUT:-300}
+  max_timeout: 3600
+  heartbeat_interval: 30
+
+  # Execution policies
+  max_retries: ${MAX_RETRIES:-3}
+  retry_backoff_type: exponential
+
+  # Task dependencies
+  dependency_check_interval: 5
+
+  # XCom (cross-communication) settings
+  xcom:
+    enabled: true
+    storage: database
+    retention_days: 7
+    max_size_bytes: 10485760  # 10MB per XCom
+
+  # Execution history
+  history:
+    retention_days: 30
+    archive_location: ${ARCHIVE_LOCATION:-s3://dolphin-backups/}
+
+# DAG Configuration
+dags:
+  # DAG parsing and validation
+  dag_dir: /app/dolphin/dags
+  parsing:
+    enabled: true
+    interval: 60
+    catch_errors: true
+
+  # DAG execution
+  execution:
+    # Concurrency limits
+    max_active_dags: 100
+    max_active_tasks_per_dag: 10
+    max_active_tasks: 50
+
+    # Scheduling
+    scheduler_interval: 5
+    catchup_enabled: false
+
+  # DAG defaults
+  defaults:
+    owner: ${DAG_OWNER:-airflow}
+    depends_on_past: false
+    wait_for_completion: true
+    email_on_failure: false
+    email_on_retry: false
+
+# Resource Management
+resources:
+  # CPU allocation
+  cpu:
+    limits: ${CPU_LIMIT:-8000m}
+    requests: ${CPU_REQUEST:-2000m}
+
+  # Memory allocation
+  memory:
+    limits: ${MEMORY_LIMIT:-16Gi}
+    requests: ${MEMORY_REQUEST:-4Gi}
+
+  # Disk space
+  disk:
+    path: ${DISK_PATH:-/data/dolphin}
+    size: ${DISK_SIZE:-100Gi}
+    cleanup_threshold: 90  # Clean up when 90% full
+
+# Monitoring and Logging
+monitoring:
+  # Prometheus metrics
+  prometheus:
+    enabled: true
+    port: 9090
+    scrape_interval: 15
+
+  # Logging configuration
+  logging:
+    level: ${LOG_LEVEL:-INFO}
+    format: json
+    output: stdout
+
+    # Log storage
+    storage:
+      type: ${LOG_STORAGE:-file}
+      path: ${LOG_PATH:-/var/log/dolphin}
+      retention_days: 30
+      max_size_mb: 1000
+
+  # Alerting
+  alerts:
+    enabled: true
+    critical_latency_threshold: 5000  # ms
+    warning_latency_threshold: 2000  # ms
+    failure_rate_threshold: 0.1  # 10%
+
+# Security Configuration
+security:
+  # Authentication
+  auth:
+    enabled: true
+    provider: oauth2
+    token_expiry: 3600
+    refresh_token_expiry: 86400
+
+  # Authorization
+  rbac:
+    enabled: true
+    default_role: user
+
+  # TLS/SSL
+  tls:
+    enabled: ${TLS_ENABLED:-false}
+    cert_path: ${TLS_CERT_PATH:-/etc/dolphin/tls/cert.pem}
+    key_path: ${TLS_KEY_PATH:-/etc/dolphin/tls/key.pem}
+
+  # Encryption
+  encryption:
+    enabled: true
+    key_path: ${ENCRYPTION_KEY_PATH:-/etc/dolphin/encryption/key}
+    algorithm: aes-256-gcm
+
+# Integration Configuration
+integrations:
+  # UI-TARS integration for checkpoint management
+  ui_tars:
+    enabled: true
+    url: ${UI_TARS_URL:-http://uitars:8080}
+    timeout: 30
+    retry_attempts: 3
+
+  # Agents service
+  agents:
+    enabled: true
+    url: ${AGENTS_URL:-http://agents:8000}
+    timeout: 60
+    health_check_interval: 30
+
+  # Supabase for state management
+  supabase:
+    enabled: true
+    url: ${SUPABASE_URL:-http://supabase:8000}
+    key: ${SUPABASE_KEY}
+    timeout: 30
+
+# Performance Tuning
+performance:
+  # Connection pooling
+  connection_pool_size: 20
+
+  # Cache configuration
+  cache:
+    enabled: true
+    type: redis
+    ttl: 3600
+    eviction_policy: lru
+
+  # Task batching
+  task_batching:
+    enabled: true
+    batch_size: 10
+    timeout: 5
+
+  # Async processing
+  async_processing:
+    enabled: true
+    worker_threads: 10
+    queue_size: 1000
+
+# Feature Flags
+features:
+  dynamic_worker_allocation: true
+  xcom_compression: false
+  task_serialization: true
+  distributed_execution: true
+  checkpoint_management: true
+
+# Development Settings
+development:
+  # Debug mode
+  debug: ${DEBUG:-false}
+
+  # Local testing
+  use_local_dag_dir: ${USE_LOCAL_DAG_DIR:-false}
+  test_mode: ${TEST_MODE:-false}
+
+  # Mock services
+  mock_agents: ${MOCK_AGENTS:-false}
+  mock_database: ${MOCK_DATABASE:-false}

@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  aubs:
+    build:
+      context: ..
+      dockerfile: aubs/Dockerfile
+      target: development
+    ports:
+      - "8000:8000"
+    environment:
+      - ENVIRONMENT=development
+      - LOG_LEVEL=DEBUG
+      - DOLPHIN_URL=${DOLPHIN_URL:-http://dolphin-server:12345}
+      - UI_TARS_URL=${UI_TARS_URL:-http://uitars:8080}
+      - NATS_URL=${NATS_URL:-nats://nats:4222}
+      - SUPABASE_URL=${SUPABASE_URL:-http://supabase:8000}
+      - SUPABASE_KEY=${SUPABASE_KEY}
+      - CONFIDENCE_THRESHOLD=${CONFIDENCE_THRESHOLD:-0.9}
+      - MAX_RETRIES=${MAX_RETRIES:-3}
+      - EXECUTION_TIMEOUT=${EXECUTION_TIMEOUT:-300}
+      # Agent configurations
+      - TRIAGE_AGENT_PROVIDER=${TRIAGE_AGENT_PROVIDER:-ollama}
+      - TRIAGE_AGENT_MODEL=${TRIAGE_AGENT_MODEL:-llama3.2:8b-instruct}
+      - VISION_AGENT_PROVIDER=${VISION_AGENT_PROVIDER:-openai}
+      - VISION_AGENT_MODEL=${VISION_AGENT_MODEL:-gpt-4o}
+      - CONTEXT_AGENT_PROVIDER=${CONTEXT_AGENT_PROVIDER:-anthropic}
+      - CONTEXT_AGENT_MODEL=${CONTEXT_AGENT_MODEL:-claude-sonnet-4}
+      # LLM API keys
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OLLAMA_HOST=${OLLAMA_HOST:-http://ollama:11434}
+      # MCP tools
+      - MCP_TODOIST_ENABLED=${MCP_TODOIST_ENABLED:-true}
+      - MCP_GCAL_ENABLED=${MCP_GCAL_ENABLED:-true}
+      - MCP_TWILIO_ENABLED=${MCP_TWILIO_ENABLED:-true}
+    volumes:
+      - ../shared:/app/shared:ro
+      - ./src:/app/src
+    networks:
+      - ohhhmail
+    depends_on:
+      - nats
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    networks:
+      - ohhhmail
+    command: ["-js", "-m", "8222"]
+
+networks:
+  ohhhmail:
+    name: ohhhmail
+    driver: bridge
