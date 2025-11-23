@@ -1,0 +1,208 @@
+# ChiliHead OpsManager v2.1 - Git Ignore
+
+# ========== Python ==========
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environments
+.venv/
+venv/
+ENV/
+env/
+.virtualenv/
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+.idea_modules/
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# ========== Node.js ==========
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Build outputs
+/dist
+/build
+/.next/
+/out/
+
+# TypeScript
+*.tsbuildinfo
+
+# ========== Environment & Secrets ==========
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.key
+*.pem
+*.p12
+secrets/
+credentials.json
+
+# ========== Docker ==========
+*.log
+docker-compose.override.yml
+
+# Docker volumes (data persistence - keep gitignored)
+**/postgres_data/
+**/redis_data/
+**/qdrant_data/
+**/ollama_models/
+**/dolphin_logs/
+
+# ========== Database ==========
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# ========== Testing ==========
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# ========== Jupyter Notebook ==========
+.ipynb_checkpoints
+*.ipynb
+
+# ========== OS ==========
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ========== IDEs ==========
+*.swp
+*.swo
+*.swn
+.vim/
+.netrwhist
+
+# ========== Logs ==========
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pids
+*.pid
+*.seed
+*.pid.lock
+
+# ========== Temporary Files ==========
+tmp/
+temp/
+*.tmp
+*.bak
+*.backup
+*.cache
+
+# ========== AI/ML Models ==========
+models/*.bin
+models/*.h5
+models/*.pkl
+models/*.joblib
+*.ckpt
+*.pt
+*.pth
+wandb/
+
+# ========== Project Specific ==========
+
+# Ollama models (too large for git)
+ollama_models/
+
+# Qdrant vector data
+qdrant_data/
+
+# PostgreSQL data
+postgres_data/
+
+# Redis data
+redis_data/
+
+# Dolphin logs
+dolphin_logs/
+
+# UI-TARS screenshots
+uitars/screenshots/
+uitars/recordings/
+
+# Generated documentation
+docs/_build/
+docs/.doctrees/
+site/
+
+# Test outputs
+test-results/
+test-reports/
+
+# Performance profiling
+*.prof
+*.pstats
+
+# ========== Keep These ==========
+# Keep example files
+!.env.example
+!docker-compose.yml
+!*.example.*
+
+# Keep documentation
+!docs/*.md
+!*.md
+
+# Keep configuration templates
+!infrastructure/*/config/*.example
+!infrastructure/*/config/*.template

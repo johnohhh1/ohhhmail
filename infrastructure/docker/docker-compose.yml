@@ -1,0 +1,324 @@
+version: '3.8'
+
+networks:
+  chilihead:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  qdrant_data:
+  ollama_models:
+  dolphin_logs:
+
+services:
+  # ========== UI Layer ==========
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: chilihead-openwebui
+    ports:
+      - "3000:8080"
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - DOLPHIN_URL=http://dolphin-server:12345
+      - UITARS_URL=http://uitars:8080
+      - AUBS_URL=http://aubs:5000
+    volumes:
+      - ./../../openwebui/components:/app/components:ro
+      - ./../../openwebui/config:/app/config:ro
+    networks:
+      - chilihead
+    depends_on:
+      - dolphin-server
+      - uitars
+      - aubs
+    restart: unless-stopped
+
+  uitars:
+    build:
+      context: ../../uitars
+      dockerfile: Dockerfile
+    container_name: chilihead-uitars
+    ports:
+      - "8080:8080"
+    environment:
+      - DOLPHIN_API=http://dolphin-server:12345/api
+      - DOLPHIN_WS=ws://dolphin-server:12345/ws
+      - CAPTURE_SCREENSHOTS=true
+      - NODE_ENV=production
+    networks:
+      - chilihead
+    depends_on:
+      - dolphin-server
+    restart: unless-stopped
+
+  # ========== Orchestration Layer ==========
+
+  dolphin-server:
+    image: apache/dolphinscheduler:3.2.0
+    container_name: chilihead-dolphin-server
+    ports:
+      - "12345:12345"
+      - "25333:25333"  # API port
+    environment:
+      - DATABASE_TYPE=postgresql
+      - DATABASE_URL=jdbc:postgresql://postgres:5432/dolphinscheduler
+      - DATABASE_USERNAME=dolphin
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+      - ZOOKEEPER_QUORUM=zookeeper:2181
+      - RESOURCE_MANAGER_ENABLED=true
+      - SPRING_PROFILES_ACTIVE=default
+    volumes:
+      - ./../../dolphin/config:/opt/dolphinscheduler/conf:ro
+      - dolphin_logs:/opt/dolphinscheduler/logs
+    networks:
+      - chilihead
+    depends_on:
+      postgres:
+        condition: service_healthy
+      zookeeper:
+        condition: service_started
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:12345/dolphinscheduler/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  dolphin-worker-gpu:
+    image: apache/dolphinscheduler:3.2.0-worker
+    container_name: chilihead-dolphin-worker-gpu
+    environment:
+      - WORKER_GROUP=agent-workers-gpu
+      - WORKER_SERVER=dolphin-server:25333
+      - REGISTRY_ZOOKEEPER_CONNECT_STRING=zookeeper:2181
+      - GPU_ENABLED=true
+      - PYTHON_HOME=/usr/bin/python3
+    volumes:
+      - ./../../agents:/opt/agents:ro
+      - ./../../shared:/opt/shared:ro
+    networks:
+      - chilihead
+    depends_on:
+      - dolphin-server
+      - ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  dolphin-worker-cpu:
+    image: apache/dolphinscheduler:3.2.0-worker
+    container_name: chilihead-dolphin-worker-cpu
+    environment:
+      - WORKER_GROUP=agent-workers-cpu
+      - WORKER_SERVER=dolphin-server:25333
+      - REGISTRY_ZOOKEEPER_CONNECT_STRING=zookeeper:2181
+      - GPU_ENABLED=false
+      - PYTHON_HOME=/usr/bin/python3
+    volumes:
+      - ./../../agents:/opt/agents:ro
+      - ./../../shared:/opt/shared:ro
+    networks:
+      - chilihead
+    depends_on:
+      - dolphin-server
+      - ollama
+    restart: unless-stopped
+
+  zookeeper:
+    image: bitnami/zookeeper:3.8
+    container_name: chilihead-zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    networks:
+      - chilihead
+    restart: unless-stopped
+
+  # ========== AUBS Service ==========
+
+  aubs:
+    build:
+      context: ../../aubs
+      dockerfile: Dockerfile
+    container_name: chilihead-aubs
+    ports:
+      - "5000:5000"
+    environment:
+      - DOLPHIN_URL=http://dolphin-server:12345
+      - UITARS_URL=http://uitars:8080
+      - NATS_URL=nats://nats:4222
+      - REDIS_URL=redis://redis:6379
+      - POSTGRES_URL=postgresql://dolphin:${POSTGRES_PASSWORD:-changeme}@postgres:5432/chilihead
+      - QDRANT_URL=http://qdrant:6333
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - LOG_LEVEL=INFO
+    volumes:
+      - ./../../aubs/src:/app/src:ro
+      - ./../../shared:/app/shared:ro
+    networks:
+      - chilihead
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nats:
+        condition: service_started
+      qdrant:
+        condition: service_started
+      dolphin-server:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ========== Supporting Services ==========
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: chilihead-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=dolphinscheduler
+      - POSTGRES_USER=dolphin
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-changeme}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./../../infrastructure/scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    networks:
+      - chilihead
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dolphin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: chilihead-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-changeme}
+    volumes:
+      - redis_data:/data
+    networks:
+      - chilihead
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: chilihead-nats
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"  # Client connections
+      - "8222:8222"  # HTTP monitoring
+      - "6222:6222"  # Cluster connections
+    networks:
+      - chilihead
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: chilihead-qdrant
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    environment:
+      - QDRANT_CONFIG=/qdrant/config/production.yaml
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - chilihead
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:6333/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: chilihead-ollama
+    ports:
+      - "11434:11434"
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_HOST=0.0.0.0
+    volumes:
+      - ollama_models:/root/.ollama
+    networks:
+      - chilihead
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ========== Monitoring (Optional) ==========
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: chilihead-prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    volumes:
+      - ./../../infrastructure/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - chilihead
+    restart: unless-stopped
+    profiles:
+      - monitoring
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: chilihead-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=redis-datasource
+    volumes:
+      - ./../../infrastructure/monitoring/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - ./../../infrastructure/monitoring/grafana/datasources:/etc/grafana/provisioning/datasources:ro
+    networks:
+      - chilihead
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    profiles:
+      - monitoring
