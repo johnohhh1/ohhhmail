@@ -14,7 +14,8 @@
       "Bash(docker-compose stop:*)",
       "Bash(git add:*)",
       "Bash(git commit -m \"$(cat <<''EOF''\nRemove Dolphin orchestration & implement direct LLM email analysis\n\nMajor changes:\n- Remove Apache DolphinScheduler (Dolphin) orchestration complexity\n- Add SimpleOrchestrator with direct LLM analysis (Claude/GPT-4)\n- Add EmailAnalyzer for structured email triage\n- Configure SnappyMail webmail client with Gmail IMAP/SMTP\n- Add AUBS chat interface with conversation history\n- Fix email data format transformation (ParsedEmail → EmailData)\n- Add API keys to docker-compose for LLM providers\n- Create ChiliHead frontend app structure\n- Add comprehensive documentation and progress notes\n\nTechnical details:\n- Deleted: dag_builder.py, action_router.py (Dolphin dependencies)\n- Added: simple_orchestrator.py, email_analyzer.py, chat.py\n- Updated: main.py to use SimpleOrchestrator\n- Fixed: HTTP 422 errors from email ingestion format mismatch\n- SnappyMail: Configured domain with IMAP/SMTP for Gmail access\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(git push)"
+      "Bash(git push)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
