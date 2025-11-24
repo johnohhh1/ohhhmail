@@ -9,7 +9,6 @@ volumes:
   redis_data:
   qdrant_data:
   ollama_models:
-  dolphin_logs:
   email_attachments:
   snappymail_data:
   openwebui_data:
@@ -56,24 +55,6 @@ services:
       - ollama
     restart: unless-stopped
 
-  uitars:
-    build:
-      context: ../../uitars
-      dockerfile: Dockerfile
-    container_name: chilihead-uitars
-    ports:
-      - "8080:8080"
-    environment:
-      - DOLPHIN_API=http://dolphin-server:12345/api
-      - DOLPHIN_WS=ws://dolphin-server:12345/ws
-      - CAPTURE_SCREENSHOTS=true
-      - NODE_ENV=production
-    networks:
-      - chilihead
-    depends_on:
-      - dolphin-server
-    restart: unless-stopped
-
   snappymail:
     image: djmaze/snappymail:latest
     container_name: chilihead-snappymail
@@ -92,83 +73,6 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
-  # ========== Orchestration Layer ==========
-
-  dolphin-server:
-    image: apache/dolphinscheduler-standalone-server:latest
-    container_name: chilihead-dolphin-server
-    ports:
-      - "12345:12345"
-    environment:
-      - TZ=America/New_York
-    volumes:
-      - dolphin_logs:/opt/dolphinscheduler/logs
-    networks:
-      - chilihead
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:12345/dolphinscheduler || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-      start_period: 60s
-
-  dolphin-worker-gpu:
-    image: apache/dolphinscheduler:latest
-    container_name: chilihead-dolphin-worker-gpu
-    environment:
-      - WORKER_GROUP=agent-workers-gpu
-      - WORKER_SERVER=dolphin-server:25333
-      - REGISTRY_ZOOKEEPER_CONNECT_STRING=zookeeper:2181
-      - GPU_ENABLED=true
-      - PYTHON_HOME=/usr/bin/python3
-    volumes:
-      - ./../../agents:/opt/agents:ro
-      - ./../../shared:/opt/shared:ro
-    networks:
-      - chilihead
-    depends_on:
-      - dolphin-server
-      - ollama
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    restart: unless-stopped
-
-  dolphin-worker-cpu:
-    image: apache/dolphinscheduler:latest
-    container_name: chilihead-dolphin-worker-cpu
-    environment:
-      - WORKER_GROUP=agent-workers-cpu
-      - WORKER_SERVER=dolphin-server:25333
-      - REGISTRY_ZOOKEEPER_CONNECT_STRING=zookeeper:2181
-      - GPU_ENABLED=false
-      - PYTHON_HOME=/usr/bin/python3
-    volumes:
-      - ./../../agents:/opt/agents:ro
-      - ./../../shared:/opt/shared:ro
-    networks:
-      - chilihead
-    depends_on:
-      - dolphin-server
-      - ollama
-    restart: unless-stopped
-
-  zookeeper:
-    image: zookeeper:3.8
-    container_name: chilihead-zookeeper
-    ports:
-      - "2181:2181"
-    environment:
-      - ALLOW_ANONYMOUS_LOGIN=yes
-    networks:
-      - chilihead
-    restart: unless-stopped
 
   # ========== Email Ingestion Service ==========
 
@@ -211,8 +115,6 @@ services:
     ports:
       - "5000:8000"
     environment:
-      - DOLPHIN_URL=http://dolphin-server:12345
-      - UITARS_URL=http://uitars:8080
       - NATS_URL=nats://nats:4222
       - REDIS_URL=redis://redis:6379
       - POSTGRES_URL=postgresql://dolphin:${POSTGRES_PASSWORD:-changeme}@postgres:5432/chilihead
@@ -235,8 +137,6 @@ services:
         condition: service_started
       qdrant:
         condition: service_started
-      dolphin-server:
-        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
