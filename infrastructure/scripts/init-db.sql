@@ -1,7 +1,8 @@
 -- ChiliHead OpsManager v2.1 - Database Initialization
 
--- Create additional database for ChiliHead data
-CREATE DATABASE IF NOT EXISTS chilihead;
+-- PostgreSQL: Check if database exists, create if not
+SELECT 'CREATE DATABASE chilihead'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'chilihead')\gexec
 
 -- Connect to chilihead database
 \c chilihead;

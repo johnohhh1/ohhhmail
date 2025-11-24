@@ -11,10 +11,10 @@ import httpx
 from datetime import datetime
 import json
 
-from .config import Settings
-from .gmail_client import GmailIMAPClient
-from .email_parser import EmailParser, ParsedEmail
-from .attachment_handler import AttachmentHandler
+from config import Settings
+from gmail_client import GmailIMAPClient
+from email_parser import EmailParser, ParsedEmail
+from attachment_handler import AttachmentHandler
 
 logger = logging.getLogger(__name__)
 
@@ -93,7 +93,7 @@ class EmailProcessor:
         for attempt in range(self.settings.retry_attempts):
             try:
                 response = await self.http_client.post(
-                    "/emails",
+                    "/process-email",
                     json=data
                 )
                 response.raise_for_status()
@@ -135,10 +135,25 @@ class EmailProcessor:
             # Save attachments
             saved_attachments = self.attachment_handler.save_all_attachments(parsed_email)
 
-            # Prepare data for AUBS
-            email_data = parsed_email.to_dict()
-            email_data["saved_attachments"] = saved_attachments
-            email_data["processed_at"] = datetime.utcnow().isoformat()
+            # Transform to AUBS EmailData format
+            email_data = {
+                "id": parsed_email.email_id,
+                "subject": parsed_email.subject,
+                "sender": parsed_email.sender,
+                "recipient": parsed_email.recipients[0] if parsed_email.recipients else "",
+                "body": parsed_email.body_text or parsed_email.body_html or "",
+                "attachments": [
+                    {
+                        "filename": att["filename"],
+                        "content_type": att["content_type"],
+                        "size": att["size"],
+                        "url": saved.get("url") if (saved := next((s for s in saved_attachments if s["filename"] == att["filename"]), None)) else None
+                    }
+                    for att in parsed_email.to_dict()["attachments"]
+                ],
+                "received_at": parsed_email.date.isoformat() if parsed_email.date else datetime.utcnow().isoformat(),
+                "headers": parsed_email.headers
+            }
 
             return email_data
 

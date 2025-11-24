@@ -11,29 +11,49 @@ volumes:
   ollama_models:
   dolphin_logs:
   email_attachments:
+  snappymail_data:
+  openwebui_data:
 
 services:
   # ========== UI Layer ==========
 
+  # ChiliHead Frontend (nginx serving custom interface)
   open-webui:
-    image: ghcr.io/open-webui/open-webui:main
-    container_name: chilihead-openwebui
+    build:
+      context: ../../openwebui
+      dockerfile: Dockerfile
+    container_name: chilihead-frontend
     ports:
-      - "3000:8080"
-    environment:
-      - OLLAMA_BASE_URL=http://ollama:11434
-      - DOLPHIN_URL=http://dolphin-server:12345
-      - UITARS_URL=http://uitars:8080
-      - AUBS_URL=http://aubs:5000
-    volumes:
-      - ./../../openwebui/components:/app/components:ro
-      - ./../../openwebui/config:/app/config:ro
+      - "3040:3040"
     networks:
       - chilihead
     depends_on:
-      - dolphin-server
-      - uitars
+      - openwebui-backend
+      - snappymail
       - aubs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3040"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Open-WebUI Backend (native Open-WebUI)
+  openwebui-backend:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: chilihead-openwebui-backend
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_PORT=8080
+      - ENABLE_SIGNUP=true
+      - WEBUI_AUTH=false
+      - DEFAULT_USER_ROLE=admin
+    volumes:
+      - openwebui_data:/app/backend/data
+    networks:
+      - chilihead
+    depends_on:
+      - ollama
     restart: unless-stopped
 
   uitars:
@@ -54,41 +74,48 @@ services:
       - dolphin-server
     restart: unless-stopped
 
-  # ========== Orchestration Layer ==========
-
-  dolphin-server:
-    image: apache/dolphinscheduler:3.2.0
-    container_name: chilihead-dolphin-server
+  snappymail:
+    image: djmaze/snappymail:latest
+    container_name: chilihead-snappymail
     ports:
-      - "12345:12345"
-      - "25333:25333"  # API port
+      - "8888:8888"
     environment:
-      - DATABASE_TYPE=postgresql
-      - DATABASE_URL=jdbc:postgresql://postgres:5432/dolphinscheduler
-      - DATABASE_USERNAME=dolphin
-      - DATABASE_PASSWORD=${POSTGRES_PASSWORD:-changeme}
-      - ZOOKEEPER_QUORUM=zookeeper:2181
-      - RESOURCE_MANAGER_ENABLED=true
-      - SPRING_PROFILES_ACTIVE=default
+      - UPLOAD_MAX_FILESIZE=25M
+      - POST_MAX_SIZE=25M
     volumes:
-      - ./../../dolphin/config:/opt/dolphinscheduler/conf:ro
-      - dolphin_logs:/opt/dolphinscheduler/logs
+      - snappymail_data:/var/lib/snappymail
     networks:
       - chilihead
-    depends_on:
-      postgres:
-        condition: service_healthy
-      zookeeper:
-        condition: service_started
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:12345/dolphinscheduler/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8888"]
       interval: 30s
       timeout: 10s
       retries: 3
 
+  # ========== Orchestration Layer ==========
+
+  dolphin-server:
+    image: apache/dolphinscheduler-standalone-server:latest
+    container_name: chilihead-dolphin-server
+    ports:
+      - "12345:12345"
+    environment:
+      - TZ=America/New_York
+    volumes:
+      - dolphin_logs:/opt/dolphinscheduler/logs
+    networks:
+      - chilihead
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:12345/dolphinscheduler || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
   dolphin-worker-gpu:
-    image: apache/dolphinscheduler:3.2.0-worker
+    image: apache/dolphinscheduler:latest
     container_name: chilihead-dolphin-worker-gpu
     environment:
       - WORKER_GROUP=agent-workers-gpu
@@ -114,7 +141,7 @@ services:
     restart: unless-stopped
 
   dolphin-worker-cpu:
-    image: apache/dolphinscheduler:3.2.0-worker
+    image: apache/dolphinscheduler:latest
     container_name: chilihead-dolphin-worker-cpu
     environment:
       - WORKER_GROUP=agent-workers-cpu
@@ -133,7 +160,7 @@ services:
     restart: unless-stopped
 
   zookeeper:
-    image: bitnami/zookeeper:3.8
+    image: zookeeper:3.8
     container_name: chilihead-zookeeper
     ports:
       - "2181:2181"
@@ -152,17 +179,16 @@ services:
     container_name: chilihead-email-ingestion
     environment:
       - GMAIL_EMAIL=${GMAIL_EMAIL}
-      - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD}
+      - GMAIL_PASSWORD=${GMAIL_APP_PASSWORD}
       - IMAP_HOST=${IMAP_HOST:-imap.gmail.com}
       - IMAP_PORT=${IMAP_PORT:-993}
-      - AUBS_URL=http://aubs:5000
+      - AUBS_API_URL=http://aubs:8000
       - AUBS_API_KEY=${AUBS_API_KEY}
-      - POLLING_INTERVAL=${EMAIL_POLLING_INTERVAL:-60}
+      - POLL_INTERVAL_SECONDS=${EMAIL_POLLING_INTERVAL:-60}
       - ATTACHMENT_STORAGE_PATH=/app/attachments
       - LOG_LEVEL=INFO
     volumes:
-      - ./../../email_ingestion:/app:ro
-      - email_attachments:/app/attachments
+      - email_attachments:/app/attachments:rw
     networks:
       - chilihead
     depends_on:
@@ -183,7 +209,7 @@ services:
       dockerfile: Dockerfile
     container_name: chilihead-aubs
     ports:
-      - "5000:5000"
+      - "5000:8000"
     environment:
       - DOLPHIN_URL=http://dolphin-server:12345
       - UITARS_URL=http://uitars:8080
@@ -193,6 +219,8 @@ services:
       - QDRANT_URL=http://qdrant:6333
       - OLLAMA_BASE_URL=http://ollama:11434
       - LOG_LEVEL=INFO
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - ./../../aubs/src:/app/src:ro
       - ./../../shared:/app/shared:ro
@@ -211,7 +239,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3

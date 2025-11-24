@@ -43,11 +43,20 @@ interface IntegrationConfig {
   n8n_webhook_url?: string;
 }
 
+interface EmailFilterConfig {
+  allowed_domains: string[];
+  allowed_senders: string[];
+  blocked_domains: string[];
+  blocked_senders: string[];
+  polling_interval: number;
+}
+
 interface SystemSettings {
   models: AgentModelConfig;
   thresholds: ThresholdConfig;
   notifications: NotificationConfig;
   integrations: IntegrationConfig;
+  email_filter: EmailFilterConfig;
 }
 
 interface SettingsProps {
@@ -58,8 +67,8 @@ export const Settings: React.FC<SettingsProps> = ({ className = '' }) => {
   const [settings, setSettings] = useState<SystemSettings | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<'models' | 'thresholds' | 'notifications' | 'integrations'>(
-    'models'
+  const [activeTab, setActiveTab] = useState<'models' | 'thresholds' | 'notifications' | 'integrations' | 'email_filter'>(
+    'email_filter'
   );
   const [availableModels, setAvailableModels] = useState<Record<string, string[]>>({
     ollama: [],
@@ -164,6 +173,30 @@ export const Settings: React.FC<SettingsProps> = ({ className = '' }) => {
     });
   };
 
+  const updateEmailFilter = (field: keyof EmailFilterConfig, value: string[] | number) => {
+    if (!settings) return;
+    setSettings({
+      ...settings,
+      email_filter: {
+        ...settings.email_filter,
+        [field]: value,
+      },
+    });
+  };
+
+  const addEmailFilterItem = (field: 'allowed_domains' | 'allowed_senders' | 'blocked_domains' | 'blocked_senders', value: string) => {
+    if (!settings || !value.trim()) return;
+    const currentList = settings.email_filter[field];
+    if (!currentList.includes(value.trim())) {
+      updateEmailFilter(field, [...currentList, value.trim()]);
+    }
+  };
+
+  const removeEmailFilterItem = (field: 'allowed_domains' | 'allowed_senders' | 'blocked_domains' | 'blocked_senders', value: string) => {
+    if (!settings) return;
+    updateEmailFilter(field, settings.email_filter[field].filter(item => item !== value));
+  };
+
   if (isLoading || !settings) {
     return (
       <div className={`settings ${className} flex items-center justify-center h-full`}>
@@ -193,8 +226,9 @@ export const Settings: React.FC<SettingsProps> = ({ className = '' }) => {
 
       {/* Tabs */}
       <div className="bg-white border-b">
-        <div className="flex gap-1 px-4">
+        <div className="flex gap-1 px-4 overflow-x-auto">
           {[
+            { key: 'email_filter', label: 'Email Filtering', icon: '📧' },
             { key: 'models', label: 'Models', icon: '🤖' },
             { key: 'thresholds', label: 'Thresholds', icon: '🎯' },
             { key: 'notifications', label: 'Notifications', icon: '🔔' },
@@ -218,6 +252,255 @@ export const Settings: React.FC<SettingsProps> = ({ className = '' }) => {
 
       {/* Content */}
       <div className="flex-1 p-6 overflow-y-auto">
+        {/* Email Filtering Tab */}
+        {activeTab === 'email_filter' && (
+          <div className="max-w-4xl">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Email Filtering (CRITICAL)</h3>
+            <p className="text-gray-600 mb-6">
+              Configure which email domains and senders are allowed or blocked. Only emails from allowed sources will be processed.
+            </p>
+
+            {/* Polling Interval */}
+            <div className="bg-white rounded-lg shadow p-6 mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Polling Interval: {settings.email_filter.polling_interval} seconds
+              </label>
+              <input
+                type="range"
+                min="30"
+                max="300"
+                step="30"
+                value={settings.email_filter.polling_interval}
+                onChange={(e) => updateEmailFilter('polling_interval', parseInt(e.target.value))}
+                className="w-full"
+              />
+              <p className="text-sm text-gray-500 mt-1">
+                How often to check for new emails (30 seconds to 5 minutes)
+              </p>
+            </div>
+
+            {/* Allowed Domains */}
+            <div className="bg-white rounded-lg shadow p-6 mb-6">
+              <h4 className="text-lg font-semibold text-gray-800 mb-3">✅ Allowed Domains</h4>
+              <p className="text-sm text-gray-600 mb-4">
+                Only emails from these domains will be processed (e.g., chilis.com, brinker.com, hotschedules.com)
+              </p>
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  id="add-allowed-domain"
+                  placeholder="Enter domain (e.g., chilis.com)"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      const input = e.target as HTMLInputElement;
+                      addEmailFilterItem('allowed_domains', input.value);
+                      input.value = '';
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    const input = document.getElementById('add-allowed-domain') as HTMLInputElement;
+                    addEmailFilterItem('allowed_domains', input.value);
+                    input.value = '';
+                  }}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Add
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {settings.email_filter.allowed_domains.map(domain => (
+                  <div
+                    key={domain}
+                    className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full"
+                  >
+                    <span className="text-sm">{domain}</span>
+                    <button
+                      onClick={() => removeEmailFilterItem('allowed_domains', domain)}
+                      className="text-green-600 hover:text-green-800"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                {settings.email_filter.allowed_domains.length === 0 && (
+                  <p className="text-sm text-gray-500 italic">No domains configured - all emails allowed</p>
+                )}
+              </div>
+            </div>
+
+            {/* Allowed Senders */}
+            <div className="bg-white rounded-lg shadow p-6 mb-6">
+              <h4 className="text-lg font-semibold text-gray-800 mb-3">✅ Allowed Senders (Optional)</h4>
+              <p className="text-sm text-gray-600 mb-4">
+                If specified, only emails from these exact addresses will be processed (e.g., dm@chilis.com)
+              </p>
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="email"
+                  id="add-allowed-sender"
+                  placeholder="Enter email address"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      const input = e.target as HTMLInputElement;
+                      addEmailFilterItem('allowed_senders', input.value);
+                      input.value = '';
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    const input = document.getElementById('add-allowed-sender') as HTMLInputElement;
+                    addEmailFilterItem('allowed_senders', input.value);
+                    input.value = '';
+                  }}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Add
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {settings.email_filter.allowed_senders.map(sender => (
+                  <div
+                    key={sender}
+                    className="flex items-center gap-2 px-3 py-1 bg-green-100 text-green-800 rounded-full"
+                  >
+                    <span className="text-sm">{sender}</span>
+                    <button
+                      onClick={() => removeEmailFilterItem('allowed_senders', sender)}
+                      className="text-green-600 hover:text-green-800"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                {settings.email_filter.allowed_senders.length === 0 && (
+                  <p className="text-sm text-gray-500 italic">Not configured - allows all senders from allowed domains</p>
+                )}
+              </div>
+            </div>
+
+            {/* Blocked Domains */}
+            <div className="bg-white rounded-lg shadow p-6 mb-6">
+              <h4 className="text-lg font-semibold text-gray-800 mb-3">🚫 Blocked Domains</h4>
+              <p className="text-sm text-gray-600 mb-4">
+                Emails from these domains will never be processed (e.g., spam.com, marketing.com)
+              </p>
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="text"
+                  id="add-blocked-domain"
+                  placeholder="Enter domain to block"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      const input = e.target as HTMLInputElement;
+                      addEmailFilterItem('blocked_domains', input.value);
+                      input.value = '';
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    const input = document.getElementById('add-blocked-domain') as HTMLInputElement;
+                    addEmailFilterItem('blocked_domains', input.value);
+                    input.value = '';
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
+                  Block
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {settings.email_filter.blocked_domains.map(domain => (
+                  <div
+                    key={domain}
+                    className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-800 rounded-full"
+                  >
+                    <span className="text-sm">{domain}</span>
+                    <button
+                      onClick={() => removeEmailFilterItem('blocked_domains', domain)}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                {settings.email_filter.blocked_domains.length === 0 && (
+                  <p className="text-sm text-gray-500 italic">No blocked domains</p>
+                )}
+              </div>
+            </div>
+
+            {/* Blocked Senders */}
+            <div className="bg-white rounded-lg shadow p-6 mb-6">
+              <h4 className="text-lg font-semibold text-gray-800 mb-3">🚫 Blocked Senders</h4>
+              <p className="text-sm text-gray-600 mb-4">
+                Emails from these specific addresses will never be processed
+              </p>
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="email"
+                  id="add-blocked-sender"
+                  placeholder="Enter email address to block"
+                  className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      const input = e.target as HTMLInputElement;
+                      addEmailFilterItem('blocked_senders', input.value);
+                      input.value = '';
+                    }
+                  }}
+                />
+                <button
+                  onClick={() => {
+                    const input = document.getElementById('add-blocked-sender') as HTMLInputElement;
+                    addEmailFilterItem('blocked_senders', input.value);
+                    input.value = '';
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
+                  Block
+                </button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {settings.email_filter.blocked_senders.map(sender => (
+                  <div
+                    key={sender}
+                    className="flex items-center gap-2 px-3 py-1 bg-red-100 text-red-800 rounded-full"
+                  >
+                    <span className="text-sm">{sender}</span>
+                    <button
+                      onClick={() => removeEmailFilterItem('blocked_senders', sender)}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                {settings.email_filter.blocked_senders.length === 0 && (
+                  <p className="text-sm text-gray-500 italic">No blocked senders</p>
+                )}
+              </div>
+            </div>
+
+            {/* Current Configuration Summary */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="font-semibold text-blue-900 mb-2">📋 Current Configuration</h4>
+              <div className="text-sm text-blue-800 space-y-1">
+                <p>• Allowed Domains: {settings.email_filter.allowed_domains.length || 'All domains'}</p>
+                <p>• Allowed Senders: {settings.email_filter.allowed_senders.length || 'All senders from allowed domains'}</p>
+                <p>• Blocked Domains: {settings.email_filter.blocked_domains.length || 'None'}</p>
+                <p>• Blocked Senders: {settings.email_filter.blocked_senders.length || 'None'}</p>
+                <p>• Polling every {settings.email_filter.polling_interval} seconds</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Models Tab */}
         {activeTab === 'models' && (
           <div className="max-w-4xl">

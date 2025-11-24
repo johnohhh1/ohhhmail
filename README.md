@@ -1,249 +1,572 @@
-# ChiliHead OpsManager v2.1 - OHHH1MAIL Platform
+# 🌶️ ChiliHead OpsManager v2.1 - OHHH1MAIL Platform
 
-AI-powered restaurant operations management platform leveraging ByteDance Dolphin scheduler and UI-TARS visual debugging.
+> AI-powered restaurant operations management platform for Chili's #605 Auburn Hills
 
-## Overview
+**Complete email automation + AI agent orchestration + Visual debugging + Intelligent chat assistant**
 
-ChiliHead OpsManager automates restaurant email processing using specialized AI agents orchestrated through Apache DolphinScheduler, with visual debugging capabilities via UI-TARS Desktop.
+---
 
-### Key Features
+## 🎯 What Is This?
 
-- **Multi-Agent Email Processing**: 5 specialized AI agents (Triage, Vision, Deadline, Task, Context)
-- **Visual Workflow Debugging**: UI-TARS Desktop integration for execution replay and debugging
-- **Enterprise Orchestration**: ByteDance Dolphin scheduler for fault-tolerant DAG execution
-- **Contextual Intelligence**: 30+ day memory with vector search for pattern recognition
-- **Automated Actions**: MCP tools for task creation, calendar scheduling, and notifications
+ChiliHead OpsManager v2.1 automates restaurant operations for John at Chili's #605 in Auburn Hills. The system:
 
-## Architecture
+1. **Monitors Gmail** for restaurant-related emails (filtered by domain/sender)
+2. **Processes emails** through 5 specialized AI agents orchestrated by Apache Dolphin Scheduler
+3. **Extracts tasks and deadlines** automatically from leadership communications
+4. **Provides AUBS** - Your friendly AI assistant with complete operational awareness
+5. **Visualizes everything** through Open-WebUI with embedded debugging tools
+
+---
+
+## ✨ Key Features
+
+### 🤖 AUBS - Your Personal Assistant
+**AUBS** (Auburn Hills Business System) is your friendly, intelligent operations assistant who:
+- Has complete awareness of all emails, tasks, and deadlines
+- Understands Chili's operations, RAP Mobile metrics, and HotSchedules
+- Prioritizes like you would (leadership deadlines first, then team issues, then guests)
+- Talks conversationally - not like a robot
+- Available 24/7 via chat in Open-WebUI
+
+[See full AUBS Guide](docs/AUBS_GUIDE.md)
+
+### 📧 Smart Email Processing
+- **5 AI Agents** working together:
+  - **Triage Agent**: Categorizes and routes emails
+  - **Vision Agent**: OCR for invoices, receipts, PDFs
+  - **Deadline Scanner**: Extracts dates and deadlines
+  - **Task Categorizer**: Identifies action items
+  - **Context Agent**: Synthesizes everything with 30-day memory
+- **Email Filtering**: Only processes emails from `chilis.com`, `brinker.com`, `hotschedules.com`
+- **Attachment Handling**: OCR, PDF parsing, image analysis
+
+### 🎨 Open-WebUI Interface
+**8 tabs for complete operational visibility:**
+
+1. **Dashboard** - Overview of operations
+2. **Emails** - Inbox, processed emails, agent outputs, quick actions
+3. **Tasks** - Task management with priorities and due dates
+4. **Calendar** - Events, deadlines, scheduling
+5. **Debug** - UI-TARS execution timeline, agent decisions, screenshots, DAG visualization
+6. **Analytics** - Performance metrics, agent stats, email volume, response times
+7. **Agents** - Agent status, model selection, performance, logs
+8. **Settings** - Model config, thresholds, notifications, integrations
+
+### 🔄 Enterprise Orchestration
+- **Apache DolphinScheduler 3.2.0** - DAG-based workflow orchestration
+- **Fault-tolerant** - Automatic retries and error handling
+- **Visual debugging** - UI-TARS embedded in Open-WebUI
+- **GPU acceleration** - NVIDIA GPU support for Vision Agent
+
+### 🧠 Multi-Provider LLM Support
+Easy model swapping between:
+- **OpenAI**: GPT-4o, GPT-5
+- **Anthropic**: Claude Sonnet 4 (AUBS uses this)
+- **Ollama**: Llama 3.2, local models
+
+Configure per-agent in `.env` file.
+
+---
+
+## 🏗️ Architecture
 
 ```
-Open-WebUI → AUBS → Dolphin Scheduler → Agent Workers → Actions
-     ↓           ↓            ↓
-UI-TARS    NATS Events  PostgreSQL/Redis/Qdrant
+┌─────────────────────────────────────────────────────────────┐
+│                   Open-WebUI (Port 3040)                    │
+│  Dashboard | Emails | Tasks | Calendar | Debug | Analytics  │
+│                        Chat with AUBS                        │
+└────────────────────────────┬────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────┐
+│              AUBS (Autonomous Unified Business System)       │
+│        Orchestrator | DAG Builder | Action Router           │
+│               Chat Service (Claude Sonnet 4)                 │
+└────────┬────────────────────────┬────────────────────────────┘
+         │                        │
+         ▼                        ▼
+┌──────────────────┐    ┌──────────────────────────────────┐
+│ Email Ingestion  │    │  Apache Dolphin Scheduler 3.2.0  │
+│  - IMAP Monitor  │    │   - DAG Execution                │
+│  - Domain Filter │    │   - GPU/CPU Workers              │
+│  - Attachment DL │    │   - Task Scheduling              │
+└──────────────────┘    └──────────────┬───────────────────┘
+                                       │
+         ┌─────────────────────────────┼────────────────────┐
+         │                             │                    │
+         ▼                             ▼                    ▼
+┌─────────────────┐         ┌─────────────────┐  ┌─────────────────┐
+│ Triage Agent    │         │  Vision Agent   │  │ Deadline Agent  │
+│ (Llama 3.2)     │         │  (GPT-4o + GPU) │  │ (Llama 3.2)     │
+└─────────────────┘         └─────────────────┘  └─────────────────┘
+         │                             │                    │
+         └─────────────────────────────┼────────────────────┘
+                                       ▼
+                            ┌─────────────────────┐
+                            │  Task Agent         │
+                            │  (Llama 3.2)        │
+                            └──────────┬──────────┘
+                                       ▼
+                            ┌─────────────────────┐
+                            │  Context Agent      │
+                            │  (Claude Sonnet 4)  │
+                            │  NO FALLBACK        │
+                            └──────────┬──────────┘
+                                       ▼
+                ┌──────────────────────────────────────────┐
+                │         MCP Tools (Actions)              │
+                │  - Task Manager    - SMS Sender          │
+                │  - Calendar Sync   - Email Responder     │
+                └──────────────────────────────────────────┘
+
+Infrastructure:
+┌─────────────┬─────────────┬─────────────┬─────────────┬─────────────┐
+│ PostgreSQL  │   Redis     │    NATS     │   Qdrant    │   Ollama    │
+│  (Data)     │  (Cache)    │  (Events)   │ (Vectors)   │  (LLMs)     │
+└─────────────┴─────────────┴─────────────┴─────────────┴─────────────┘
 ```
 
-## Quick Start
+---
+
+## 🚀 Quick Start (Windows)
 
 ### Prerequisites
 
-- Docker Desktop with WSL2 (Windows) or Docker Engine (Linux/Mac)
-- NVIDIA GPU with CUDA support (for Vision Agent)
-- 16GB+ RAM
-- Python 3.11+
-- Node.js 18+
+- **Docker Desktop** with WSL2 enabled
+- **NVIDIA GPU** with CUDA support (for Vision Agent)
+- **16GB+ RAM** recommended
+- **Gmail account** with App Password configured
+- **OpenAI API key** (optional, for GPT models)
+- **Anthropic API key** (for Claude / AUBS chat)
 
 ### Installation
 
 1. **Clone Repository**
    ```bash
-   git clone <repository-url>
-   cd ohhh1mail
+   git clone https://github.com/johnohhh1/ohhhmail.git
+   cd ohhhmail
    ```
 
-2. **Set Up Environment**
+2. **Configure Environment**
+
+   Edit `infrastructure/docker/.env` with your credentials:
+   - OpenAI API key (if using GPT models)
+   - Anthropic API key (required for AUBS chat)
+   - Gmail credentials
+   - Email filtering (allowed domains/senders)
+
+   **CRITICAL Email Filtering:**
+   ```env
+   ALLOWED_DOMAINS=chilis.com,brinker.com,hotschedules.com
+   ALLOWED_SENDERS=
+   BLOCKED_DOMAINS=spam.com
+   BLOCKED_SENDERS=
+   ```
+
+3. **Start All Services**
    ```bash
-   cp infrastructure/docker/.env.example infrastructure/docker/.env
-   # Edit .env with your configuration
+   start.bat
    ```
 
-3. **Start Infrastructure**
-   ```bash
-   cd infrastructure/docker
-   docker-compose up -d
-   ```
+   This will:
+   - Check Docker is running
+   - Start all 13 services via Docker Compose
+   - Wait for services to initialize
+   - Open Open-WebUI in your browser
 
-4. **Initialize Database**
-   ```bash
-   ./infrastructure/scripts/init-db.sh
-   ```
+4. **Access Services**
+   - **Open-WebUI**: http://localhost:3040
+   - **Dolphin Scheduler**: http://localhost:12345 (admin/admin)
+   - **AUBS API**: http://localhost:5000
+   - **Grafana** (optional): http://localhost:3001
 
-5. **Set Up Ollama Models**
-   ```bash
-   ./infrastructure/scripts/setup-ollama.sh
-   ```
+---
 
-6. **Access Services**
-   - Open-WebUI: http://localhost:3000
-   - Dolphin Scheduler: http://localhost:12345
-   - UI-TARS: http://localhost:8080
-   - AUBS API: http://localhost:5000
+## 💬 Chat with AUBS
 
-## System Components
+### Quick Start
 
-### AUBS (Autonomous Unified Business System)
-Central orchestrator that builds Dolphin DAGs, monitors execution, and routes actions to MCP tools.
+1. Open http://localhost:3040
+2. Click the chat button (floating button in bottom-right)
+3. Start chatting!
 
-**Location**: `aubs/`
+### Example Conversations
 
-### Agent Workers
+**You:** "What's urgent today?"
 
-1. **Triage Agent** (`agents/triage/`)
-   - Model: llama-3.2-8b-instruct
-   - Purpose: Email categorization and routing
-   - Output: Category, urgency, vision requirement
+**AUBS:** "Hey John! Here's what needs your attention:
 
-2. **Vision Agent** (`agents/vision/`)
-   - GPU-accelerated OCR and image processing
-   - Purpose: Extract data from invoices, receipts, PDFs
-   - Output: Structured data from images
+1. **Leadership deadline** - Your DM needs the manager schedule by Friday 5pm
+2. **Team issue** - Sarah called out for tonight's shift
+3. **Guest complaint** - Slow service feedback from last night
 
-3. **Deadline Scanner** (`agents/deadline/`)
-   - Purpose: Extract dates and deadlines
-   - Output: Parsed datetime objects with context
+Want me to help you prioritize?"
 
-4. **Task Categorizer** (`agents/task/`)
-   - Purpose: Identify action items
-   - Output: Task list with priorities
+**You:** "Help me plan my next 2 hours"
 
-5. **Context Agent** (`agents/context/`)
-   - Model: oss-120b (NO FALLBACK)
-   - Purpose: Synthesize all agent outputs with historical context
-   - Output: Recommendations and risk assessment
+**AUBS:** "Sure! Based on what we have:
 
-### Infrastructure Services
+First 30 minutes:
+- Review and send manager schedule to DM (critical deadline)
+- Call Sarah to confirm her shift status
 
-- **Dolphin Scheduler**: DAG-based workflow orchestration
-- **PostgreSQL**: Persistent data storage
-- **Redis**: State management and caching
-- **NATS JetStream**: Event streaming
-- **Qdrant**: Vector database for context retrieval
-- **Ollama**: Local LLM hosting
+Next 60 minutes:
+- Address guest complaint - review section 3 service times
+- Prep for tonight with one server short
 
-## Development
+The DM deadline is most urgent. Want me to pull up the schedule?"
 
-### Setup Development Environment
+**You:** "What's our comp sales this week?"
 
-```bash
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+**AUBS:** "I don't have access to RAP Mobile data yet (coming in next update), but I can see we processed 47 emails this week with 3 from corporate leadership. Want me to check if any mentioned sales numbers?"
 
-# Install dependencies
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+[See full AUBS Guide](docs/AUBS_GUIDE.md)
 
-# Install pre-commit hooks
-pre-commit install
-```
+---
 
-### Run Tests
+## 📊 System Components
 
-```bash
-# Unit tests
-pytest tests/ -v
+### 13 Docker Services
 
-# Integration tests
-pytest tests/integration/ -v
+1. **postgres** - PostgreSQL 15 (persistent storage)
+2. **redis** - Redis 7 (caching, state)
+3. **nats** - NATS JetStream (event streaming)
+4. **qdrant** - Vector database (context memory)
+5. **ollama** - Local LLM hosting
+6. **dolphin-server** - Dolphin scheduler server
+7. **dolphin-worker-gpu** - GPU worker for Vision Agent
+8. **dolphin-worker-cpu** - CPU workers for other agents
+9. **aubs** - AUBS orchestrator and chat service
+10. **email-ingestion** - Gmail monitoring and filtering
+11. **open-webui** - Web interface (port 3040)
+12. **uitars** - Visual debugging service
+13. **grafana** (optional) - Monitoring dashboards
 
-# E2E tests
-pytest tests/e2e/ -v
+### 5 AI Agents
 
-# With coverage
-pytest --cov=aubs --cov=agents --cov-report=html
-```
+| Agent | Model | Purpose | Timeout |
+|-------|-------|---------|---------|
+| **Triage** | llama3.2:8b-instruct | Email categorization | 15s |
+| **Vision** | gpt-4o (GPU) | OCR, image processing | 30s |
+| **Deadline** | llama3.2:8b-instruct | Date extraction | 15s |
+| **Task** | llama3.2:8b-instruct | Action identification | 15s |
+| **Context** | claude-sonnet-4 | Context synthesis (NO FALLBACK) | 30s |
 
-### Code Quality
+All agents configurable per environment in `.env`.
 
-```bash
-# Format code
-black .
-isort .
+---
 
-# Type checking
-mypy aubs/ agents/ shared/
+## 🛠️ Management Commands
 
-# Linting
-flake8 aubs/ agents/ shared/
+### Windows Batch Files
 
-# Security scan
-bandit -r aubs/ agents/
-```
+- **start.bat** - Start all services
+- **stop.bat** - Stop all services
+- **status.bat** - Check service health
+- **logs.bat** - View service logs (interactive menu)
+- **setup.bat** - Initial setup and dependency installation
 
-## Configuration
-
-### Environment Variables
-
-Key environment variables (see `.env.example`):
-
-- `DOLPHIN_URL`: Dolphin scheduler API endpoint
-- `OLLAMA_BASE_URL`: Ollama API endpoint
-- `POSTGRES_URL`: PostgreSQL connection string
-- `REDIS_URL`: Redis connection string
-- `NATS_URL`: NATS server URL
-- `QDRANT_URL`: Qdrant API endpoint
-
-### Agent Configuration
-
-Agent-specific configuration in `aubs/src/config.py`:
-
-```python
-AGENT_CONFIG = {
-    "triage": {"model": "llama-3.2-8b-instruct", "timeout": 15},
-    "vision": {"model": "llama-vision", "gpu": True, "timeout": 30},
-    "context": {"model": "oss-120b", "fallback": False, "timeout": 30}
-}
-```
-
-## Deployment
-
-### Docker Compose (Development)
+### Docker Commands
 
 ```bash
-cd infrastructure/docker
-docker-compose up -d
+# View all services
+docker-compose ps
+
+# View logs for specific service
+docker-compose logs -f aubs
+docker-compose logs -f email-ingestion
+
+# Restart a service
+docker-compose restart aubs
+
+# Stop everything
+docker-compose down
+
+# Rebuild and restart
+docker-compose up -d --build
 ```
 
-### Kubernetes (Production)
+---
 
+## ⚙️ Configuration
+
+### Agent Models
+
+Edit `infrastructure/docker/.env` to change models:
+
+```env
+# Triage Agent - Fast categorization
+TRIAGE_AGENT_PROVIDER=ollama
+TRIAGE_AGENT_MODEL=llama3.2:8b-instruct
+TRIAGE_AGENT_FALLBACK=openai:gpt-4o-mini
+
+# Vision Agent - OCR (needs GPU)
+VISION_AGENT_PROVIDER=openai
+VISION_AGENT_MODEL=gpt-4o
+VISION_AGENT_GPU=true
+
+# Context Agent - CRITICAL, NO FALLBACK
+CONTEXT_AGENT_PROVIDER=anthropic
+CONTEXT_AGENT_MODEL=claude-sonnet-4
+CONTEXT_AGENT_FALLBACK=DISABLED
+```
+
+### Email Filtering (CRITICAL)
+
+```env
+# Only process emails from these domains
+ALLOWED_DOMAINS=chilis.com,brinker.com,hotschedules.com
+
+# Optionally restrict to specific senders
+ALLOWED_SENDERS=dm@chilis.com,regional@brinker.com
+
+# Block specific domains or senders
+BLOCKED_DOMAINS=spam.com,marketing.com
+BLOCKED_SENDERS=noreply@spam.com
+```
+
+**After changing filters, restart email-ingestion:**
 ```bash
-cd infrastructure/kubernetes
-kubectl apply -f namespace.yaml
-kubectl apply -f .
+docker-compose restart email-ingestion
 ```
 
-## Monitoring
+---
+
+## 📁 Project Structure
+
+```
+ohhhmail/
+├── aubs/                        # AUBS orchestrator
+│   └── src/
+│       ├── main.py             # FastAPI app
+│       ├── orchestrator.py     # DAG builder
+│       ├── dag_builder.py      # DAG construction
+│       ├── action_router.py    # MCP tool routing
+│       └── chat.py             # AUBS chat service ⭐
+│
+├── agents/                      # 5 AI agents
+│   ├── triage/
+│   ├── vision/
+│   ├── deadline/
+│   ├── task/
+│   └── context/
+│
+├── email_ingestion/             # Gmail monitoring
+│   ├── monitor.py              # IMAP monitoring
+│   ├── processor.py            # Email processing ⭐ (filtering)
+│   └── config.py               # Configuration
+│
+├── openwebui/                   # Open-WebUI components
+│   ├── components/
+│   │   ├── Dashboard.tsx
+│   │   ├── EmailDashboard.tsx
+│   │   ├── TaskManager.tsx
+│   │   ├── CalendarView.tsx
+│   │   ├── UITARSDebugPanel.tsx  # Embedded debugging
+│   │   ├── Analytics.tsx
+│   │   ├── AgentMonitor.tsx
+│   │   ├── Settings.tsx
+│   │   └── ChatWithAUBS.tsx    # AUBS chat UI ⭐
+│   └── config/
+│       └── tabs-config.json    # 8 tabs configuration
+│
+├── mcp_tools/                   # MCP action tools
+│   ├── task_manager.py
+│   ├── calendar_integration.py
+│   └── sms_sender.py
+│
+├── shared/                      # Shared libraries
+│   ├── models.py               # Pydantic models
+│   ├── llm_config.py           # Multi-provider LLM
+│   └── clients/                # Service clients
+│
+├── infrastructure/
+│   ├── docker/
+│   │   ├── docker-compose.yml  # 13 services
+│   │   └── .env                # Configuration ⭐
+│   └── dolphin/                # Dolphin configs
+│
+├── docs/                        # Documentation
+│   ├── AUBS_GUIDE.md           # AUBS user guide ⭐
+│   ├── BUILD_STATUS.md         # Implementation status
+│   ├── IMPLEMENTATION_PLAN.md  # 10-week plan
+│   └── QUICK_START.md          # Getting started
+│
+├── start.bat                    # Windows start script
+├── stop.bat                     # Windows stop script
+├── status.bat                   # Health check script
+└── logs.bat                     # Log viewer script
+```
+
+⭐ = Recently updated with AUBS persona and email filtering
+
+---
+
+## 📚 Documentation
+
+- **[AUBS Guide](docs/AUBS_GUIDE.md)** - Complete guide to using AUBS
+- **[Quick Start](docs/QUICK_START.md)** - Getting started guide
+- **[Build Status](docs/BUILD_STATUS.md)** - Implementation status
+- **[Implementation Plan](docs/IMPLEMENTATION_PLAN.md)** - 10-week roadmap
+- **[Build Orchestrator](docs/BUILD_ORCHESTRATOR.md)** - AI swarm build strategy
+
+---
+
+## 🔍 Monitoring & Debugging
 
 ### Health Checks
 
-- AUBS: `http://localhost:5000/health`
-- Dolphin: `http://localhost:12345/dolphinscheduler/health`
-- Each service exposes `/health` endpoint
+```bash
+# Check all services
+status.bat
 
-### Metrics
+# Individual health endpoints
+curl http://localhost:5000/health      # AUBS
+curl http://localhost:8001/health      # Email Ingestion
+curl http://localhost:12345/dolphinscheduler/health  # Dolphin
+```
 
-- Prometheus metrics: `http://localhost:9090`
-- Grafana dashboards: `http://localhost:3001`
-- UI-TARS debugging: `http://localhost:8080`
+### Logs
 
-## Documentation
+```bash
+# Interactive log viewer
+logs.bat
 
-- [Architecture](docs/architecture.md)
-- [Agent Specifications](docs/agent-specs.md)
-- [Deployment Guide](docs/deployment.md)
-- [Troubleshooting](docs/troubleshooting.md)
+# Or direct Docker commands
+docker-compose logs -f aubs
+docker-compose logs -f email-ingestion
+docker-compose logs -f dolphin-server
+```
 
-## Project Status
+### UI-TARS Debug Panel
 
-- [x] PRD Complete
-- [x] Implementation Plan
-- [ ] Infrastructure Setup
-- [ ] AUBS Core Implementation
-- [ ] Agent Development
-- [ ] UI-TARS Integration
-- [ ] E2E Testing
-- [ ] Production Deployment
+1. Open http://localhost:3040
+2. Click "Debug" tab
+3. View:
+   - Execution timeline with timestamps
+   - Agent decisions and reasoning
+   - Screenshots from Vision Agent
+   - DAG visualization
+   - Replay capability
 
-## License
+---
 
-[Your License Here]
+## 🎯 Current Status
 
-## Contributing
+### ✅ Completed
 
-[Contributing Guidelines]
+- [x] Complete project structure (40+ directories)
+- [x] Docker infrastructure (13 services)
+- [x] Shared client libraries (Dolphin, NATS, Qdrant, Ollama, LLM)
+- [x] AUBS service (orchestrator, DAG builder, action router)
+- [x] All 5 AI agents (Triage, Vision, Deadline, Task, Context)
+- [x] MCP tools (Task, Calendar, SMS, Email)
+- [x] Email ingestion with CRITICAL filtering
+- [x] Open-WebUI components (8 tabs)
+- [x] **AUBS chat with full persona and operational awareness** ⭐
+- [x] Windows batch files for management
+- [x] Complete documentation
 
-## Support
+### 🚧 In Progress
 
-For issues and questions:
-- GitHub Issues: [Repository Issues]
-- Documentation: [docs/](docs/)
-- Email: [support email]
+- [ ] PostgreSQL persistence for chat sessions
+- [ ] RAP Mobile metrics integration
+- [ ] HotSchedules integration
+- [ ] Google Calendar sync
+- [ ] ChiliHead 5-Pillar Delegations (can wait)
+
+### 📋 Planned
+
+- [ ] Proactive AUBS alerts
+- [ ] Voice interface for AUBS
+- [ ] Performance trend analysis
+- [ ] Mobile app
+- [ ] Multi-restaurant support
+
+---
+
+## 🔒 Security & Privacy
+
+### Data Privacy
+- All data stays on your infrastructure
+- No external data sharing
+- Gmail credentials stored securely in environment variables
+- Email filtering prevents spam and noise
+
+### API Keys
+- OpenAI API key: Optional (only if using GPT models)
+- Anthropic API key: Required (for AUBS chat and Context Agent)
+- All API calls encrypted and ephemeral
+
+### Access Control
+- Currently single-user (John)
+- Can be extended with authentication
+
+---
+
+## 🐛 Troubleshooting
+
+### AUBS Not Responding
+
+1. Check AUBS service:
+   ```bash
+   docker-compose ps aubs
+   docker-compose logs -f aubs
+   ```
+
+2. Verify Anthropic API key in `.env`:
+   ```env
+   ANTHROPIC_API_KEY=sk-ant-api03-...
+   ```
+
+3. Restart AUBS:
+   ```bash
+   docker-compose restart aubs
+   ```
+
+### Emails Not Being Processed
+
+1. Check email filtering configuration in `.env`
+2. Verify Gmail credentials
+3. Check email-ingestion logs:
+   ```bash
+   docker-compose logs -f email-ingestion
+   ```
+
+### Services Won't Start
+
+1. Verify Docker Desktop is running
+2. Check port 3040 is available (not 3000)
+3. Review `.env` for missing values
+4. Check logs: `docker-compose logs`
+
+### GPU Not Detected (Vision Agent)
+
+1. Verify NVIDIA drivers installed
+2. Check Docker Desktop GPU support enabled
+3. Test: `docker run --gpus all nvidia/cuda:11.0-base nvidia-smi`
+
+---
+
+## 👨‍💼 About
+
+**Built specifically for:**
+- **John Olenski** - Managing Partner
+- **Chili's #605** - Auburn Hills, Michigan
+- **Brinker International** - Franchise operations
+
+**Contact:**
+- Email: john.olenski@gmail.com
+- GitHub: [@johnohhh1](https://github.com/johnohhh1)
+
+---
+
+## 📄 License
+
+Private & Confidential - All Rights Reserved
+
+---
+
+**Built with ❤️ by a GM who believes great people deserve great tools.**
+
+*🌶️ "Excellence Through Leadership & Accountability"*

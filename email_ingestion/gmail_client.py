@@ -11,7 +11,7 @@ from email.message import Message
 import logging
 from contextlib import contextmanager
 
-from .config import Settings
+from config import Settings
 
 logger = logging.getLogger(__name__)
 

@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChiliHead OpsManager v2.1</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+
+    /* Tab Navigation Styles */
+    .tab-nav {
+      display: flex;
+      background: #1f2937;
+      border-bottom: 1px solid #374151;
+    }
+
+    .tab-btn {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 1rem 1.5rem;
+      background: transparent;
+      border: none;
+      border-top: 3px solid transparent;
+      color: #9ca3af;
+      cursor: pointer;
+      font-size: 0.875rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      color: #e5e7eb;
+      background: #374151;
+    }
+
+    .tab-btn.active {
+      color: #fff;
+      background: #111827;
+      border-top-color: #3b82f6;
+    }
+
+    .tab-content {
+      display: none;
+      height: calc(100vh - 120px);
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .chilihead-iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+  </style>
+</head>
+<body class="bg-gray-900">
+  <div class="flex flex-col h-screen">
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 px-6 py-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="text-2xl">🌶️</div>
+          <div>
+            <h1 class="text-xl font-bold text-white">ChiliHead OpsManager</h1>
+            <p class="text-sm text-gray-400">Restaurant Operations Platform v2.1</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="px-3 py-1 bg-green-600 text-white text-xs font-semibold rounded-full">● LIVE</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <nav class="tab-nav">
+      <button onclick="switchTab('chat')" id="tab-chat" class="tab-btn active">
+        <span>🤖</span>
+        <span>AI Chat (GPT-4, Claude, Ollama)</span>
+      </button>
+      <button onclick="switchTab('email')" id="tab-email" class="tab-btn">
+        <span>📧</span>
+        <span>Email Client</span>
+      </button>
+      <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn">
+        <span>⚙️</span>
+        <span>Settings</span>
+      </button>
+    </nav>
+
+    <!-- Tab Contents -->
+    <main class="flex-1 overflow-hidden">
+      <!-- AI Chat Tab (Open-WebUI Native) -->
+      <div id="content-chat" class="tab-content active">
+        <iframe
+          src="http://localhost:8080"
+          class="chilihead-iframe"
+          allow="camera; microphone; clipboard-read; clipboard-write"
+          title="Open-WebUI AI Chat">
+        </iframe>
+      </div>
+
+      <!-- Email Client Tab -->
+      <div id="content-email" class="tab-content">
+        <div class="h-full flex items-center justify-center bg-gray-100">
+          <div class="text-center">
+            <h3 class="text-xl font-bold text-gray-900 mb-4">📧 Email Client</h3>
+            <p class="text-gray-600 mb-6">SnappyMail cannot be embedded due to security restrictions.</p>
+            <a
+              href="http://localhost:8888"
+              target="_blank"
+              class="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition inline-block">
+              Open Email Client in New Tab →
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Settings Tab -->
+      <div id="content-settings" class="tab-content">
+        <div class="h-full overflow-y-auto bg-gray-100 p-8">
+          <div class="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-8">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">📧 Email Filter Settings</h2>
+
+            <div class="mb-8">
+              <h3 class="text-lg font-semibold mb-2">Allowed Domains</h3>
+              <p class="text-sm text-gray-600 mb-3">Only process emails from these domains</p>
+              <div class="flex flex-wrap gap-2 mb-4" id="allowed-domains-list">
+                <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">chilis.com</span>
+                <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">brinker.com</span>
+                <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">hotschedules.com</span>
+              </div>
+              <div class="flex gap-2">
+                <input
+                  type="text"
+                  id="add-allowed-domain"
+                  placeholder="Add domain (e.g., example.com)"
+                  class="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button
+                  onclick="addDomain('allowed')"
+                  class="px-6 py-2 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700 transition">
+                  Add Domain
+                </button>
+              </div>
+            </div>
+
+            <div class="mb-8">
+              <h3 class="text-lg font-semibold mb-2">Blocked Domains</h3>
+              <p class="text-sm text-gray-600 mb-3">Never process emails from these domains</p>
+              <div class="flex flex-wrap gap-2 mb-4" id="blocked-domains-list">
+                <span class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">spam.com</span>
+                <span class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">marketing.com</span>
+              </div>
+              <div class="flex gap-2">
+                <input
+                  type="text"
+                  id="add-blocked-domain"
+                  placeholder="Add domain (e.g., spam.com)"
+                  class="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500">
+                <button
+                  onclick="addDomain('blocked')"
+                  class="px-6 py-2 bg-red-600 text-white rounded-md font-medium hover:bg-red-700 transition">
+                  Add Domain
+                </button>
+              </div>
+            </div>
+
+            <div class="pt-6 border-t">
+              <button
+                onclick="saveSettings()"
+                class="px-8 py-3 bg-green-600 text-white rounded-md font-medium text-lg hover:bg-green-700 transition">
+                💾 Save Settings
+              </button>
+              <p class="text-sm text-gray-500 mt-2">Settings are applied immediately to the email ingestion service</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function switchTab(tab) {
+      // Hide all content
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+      // Show selected content
+      document.getElementById('content-' + tab).classList.add('active');
+      document.getElementById('tab-' + tab).classList.add('active');
+    }
+
+    function addDomain(type) {
+      const input = document.getElementById(`add-${type}-domain`);
+      const domain = input.value.trim().toLowerCase();
+
+      if (!domain) {
+        alert('Please enter a domain name');
+        return;
+      }
+
+      // Validate domain format
+      if (!/^[a-z0-9-]+\.[a-z]{2,}$/.test(domain)) {
+        alert('Invalid domain format. Example: chilis.com');
+        return;
+      }
+
+      // Create domain tag
+      const tag = document.createElement('span');
+      tag.className = type === 'allowed'
+        ? 'px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium'
+        : 'px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium';
+      tag.textContent = domain;
+
+      // Add remove button
+      tag.innerHTML += ' <button onclick="this.parentElement.remove()" class="ml-1 text-xs opacity-60 hover:opacity-100">✕</button>';
+
+      // Add to list
+      document.getElementById(`${type}-domains-list`).appendChild(tag);
+      input.value = '';
+    }
+
+    async function saveSettings() {
+      // Collect all domains
+      const allowedDomains = Array.from(document.querySelectorAll('#allowed-domains-list span'))
+        .map(el => el.textContent.replace('✕', '').trim());
+      const blockedDomains = Array.from(document.querySelectorAll('#blocked-domains-list span'))
+        .map(el => el.textContent.replace('✕', '').trim());
+
+      try {
+        const response = await fetch('http://localhost:5000/api/settings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            allowed_domains: allowedDomains,
+            blocked_domains: blockedDomains
+          })
+        });
+
+        if (response.ok) {
+          alert('✅ Settings saved successfully!\n\nEmail filtering is now active.');
+        } else {
+          const error = await response.text();
+          alert('❌ Failed to save settings: ' + error);
+        }
+      } catch (error) {
+        console.error('Error saving settings:', error);
+        alert('❌ Error connecting to AUBS service');
+      }
+    }
+  </script>
+</body>
+</html>

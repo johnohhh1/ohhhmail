@@ -12,7 +12,7 @@ import logging
 from datetime import datetime
 import mimetypes
 
-from .email_parser import EmailAttachment, ParsedEmail
+from email_parser import EmailAttachment, ParsedEmail
 
 logger = logging.getLogger(__name__)
 

@@ -1,27 +1,34 @@
-/**
- * Email Client Component - SnappyMail Integration
- * Full-featured email client with optional agent processing view
- */
+'use client';
 
-import React, { useState, useEffect } from 'react';
-import type { EmailProcessed } from '../types';
+import { useState, useEffect } from 'react';
 
-interface EmailDashboardProps {
-  className?: string;
-  snappymailUrl?: string;
+interface EmailProcessed {
+  email_id: string;
+  subject: string;
+  from: string;
+  status: string;
+  confidence_score?: number;
+  agent_outputs: {
+    triage?: any;
+    deadline?: any;
+    vision?: any;
+    context?: any;
+  };
+  actions_taken: Array<{
+    action_id: string;
+    type: string;
+    timestamp: string;
+  }>;
 }
 
-export const EmailDashboard: React.FC<EmailDashboardProps> = ({
-  className = '',
-  snappymailUrl = 'http://localhost:8888',
-}) => {
+export default function EmailClient() {
   const [showAgentView, setShowAgentView] = useState(false);
   const [recentEmails, setRecentEmails] = useState<EmailProcessed[]>([]);
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
 
   const fetchRecentProcessedEmails = async () => {
     try {
-      const response = await fetch('/api/emails/recent?limit=10');
+      const response = await fetch('http://localhost:5000/api/emails/recent?limit=10');
       const data = await response.json();
       setRecentEmails(data.emails || []);
     } catch (error) {
@@ -40,7 +47,7 @@ export const EmailDashboard: React.FC<EmailDashboardProps> = ({
   const selectedEmail = recentEmails.find((e) => e.email_id === selectedEmailId);
 
   return (
-    <div className={`email-dashboard flex h-screen bg-gray-100 ${className}`}>
+    <div className="flex h-full bg-gray-100">
       {/* Main Email Client - SnappyMail */}
       <div className={`flex-1 flex flex-col bg-white ${showAgentView ? 'border-r border-gray-200' : ''}`}>
         {/* Header */}
@@ -64,7 +71,7 @@ export const EmailDashboard: React.FC<EmailDashboardProps> = ({
         {/* SnappyMail iframe */}
         <div className="flex-1 relative">
           <iframe
-            src={snappymailUrl}
+            src="http://localhost:8888"
             className="absolute inset-0 w-full h-full border-0"
             title="SnappyMail Email Client"
             sandbox="allow-same-origin allow-scripts allow-forms allow-popups allow-downloads"
@@ -152,84 +159,14 @@ export const EmailDashboard: React.FC<EmailDashboardProps> = ({
                 AI Analysis Results
               </h4>
 
-              {/* Triage */}
-              {selectedEmail.agent_outputs.triage && (
-                <details className="mb-2 bg-white rounded border border-blue-200">
-                  <summary className="p-2 cursor-pointer text-xs font-medium text-blue-900 hover:bg-blue-50">
-                    🎯 Triage: {selectedEmail.agent_outputs.triage.category || 'Unknown'}
-                  </summary>
-                  <div className="p-2 border-t border-blue-100">
-                    <pre className="text-xs overflow-x-auto">
-                      {JSON.stringify(selectedEmail.agent_outputs.triage, null, 2)}
-                    </pre>
-                  </div>
-                </details>
-              )}
-
-              {/* Deadline Scanner */}
-              {selectedEmail.agent_outputs.deadline && (
-                <details className="mb-2 bg-white rounded border border-yellow-200">
-                  <summary className="p-2 cursor-pointer text-xs font-medium text-yellow-900 hover:bg-yellow-50">
-                    📅 Deadlines: {selectedEmail.agent_outputs.deadline.deadlines?.length || 0}
-                  </summary>
-                  <div className="p-2 border-t border-yellow-100">
-                    <pre className="text-xs overflow-x-auto">
-                      {JSON.stringify(selectedEmail.agent_outputs.deadline, null, 2)}
-                    </pre>
-                  </div>
-                </details>
-              )}
-
-              {/* Vision Agent */}
-              {selectedEmail.agent_outputs.vision && (
-                <details className="mb-2 bg-white rounded border border-purple-200">
-                  <summary className="p-2 cursor-pointer text-xs font-medium text-purple-900 hover:bg-purple-50">
-                    👁️ Vision Analysis
-                  </summary>
-                  <div className="p-2 border-t border-purple-100">
-                    <pre className="text-xs overflow-x-auto">
-                      {JSON.stringify(selectedEmail.agent_outputs.vision, null, 2)}
-                    </pre>
-                  </div>
-                </details>
-              )}
-
-              {/* Context Agent */}
-              {selectedEmail.agent_outputs.context && (
-                <details className="mb-2 bg-white rounded border border-green-200">
-                  <summary className="p-2 cursor-pointer text-xs font-medium text-green-900 hover:bg-green-50">
-                    🧠 Context: {(selectedEmail.confidence_score * 100).toFixed(0)}% Confidence
-                  </summary>
-                  <div className="p-2 border-t border-green-100">
-                    <pre className="text-xs overflow-x-auto max-h-40">
-                      {JSON.stringify(selectedEmail.agent_outputs.context, null, 2)}
-                    </pre>
-                  </div>
-                </details>
-              )}
-
-              {/* Actions Taken */}
-              {selectedEmail.actions_taken.length > 0 && (
-                <details className="mb-2 bg-white rounded border border-gray-200">
-                  <summary className="p-2 cursor-pointer text-xs font-medium text-gray-900 hover:bg-gray-50">
-                    ⚡ Actions: {selectedEmail.actions_taken.length}
-                  </summary>
-                  <div className="p-2 border-t border-gray-100 space-y-2">
-                    {selectedEmail.actions_taken.map((action) => (
-                      <div key={action.action_id} className="text-xs bg-gray-50 rounded p-2">
-                        <div className="font-medium">{action.type.replace(/_/g, ' ')}</div>
-                        <div className="text-gray-600 text-xs">
-                          {new Date(action.timestamp).toLocaleString()}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </details>
-              )}
+              {/* Agent outputs would be displayed here */}
+              <div className="text-xs text-gray-600">
+                Agent processing details for: {selectedEmail.subject}
+              </div>
             </div>
           )}
         </div>
       )}
     </div>
   );
-};
+}

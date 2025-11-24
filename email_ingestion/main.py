@@ -13,8 +13,8 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from .config import Settings
-from .processor import EmailProcessor
+from config import Settings
+from processor import EmailProcessor
 
 # Configure logging
 logging.basicConfig(

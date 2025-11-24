@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChiliHead OpsManager v2.1</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
+    .tab-content { display: none; }
+    .tab-content.active { display: flex; }
+  </style>
+</head>
+<body class="bg-gray-900">
+  <div class="flex flex-col h-screen">
+    <!-- Header -->
+    <header class="bg-gray-800 border-b border-gray-700 px-6 py-4">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="text-2xl">🌶️</div>
+          <div>
+            <h1 class="text-xl font-bold text-white">ChiliHead OpsManager</h1>
+            <p class="text-sm text-gray-400">Restaurant Operations Platform v2.1</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="px-3 py-1 bg-green-600 text-white text-xs font-semibold rounded-full">● LIVE</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <nav class="bg-gray-800 border-b border-gray-700 px-6">
+      <div class="flex gap-1">
+        <button onclick="switchTab('email')" id="tab-email" class="tab-btn px-6 py-3 font-medium text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-700">
+          <span class="mr-2">📧</span>Email Client
+        </button>
+        <button onclick="switchTab('chat')" id="tab-chat" class="tab-btn px-6 py-3 font-medium text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-700">
+          <span class="mr-2">🤖</span>AI Chat (GPT-4, Claude, Stable Diffusion)
+        </button>
+        <button onclick="switchTab('settings')" id="tab-settings" class="tab-btn px-6 py-3 font-medium text-sm text-gray-400 hover:text-gray-200 hover:bg-gray-700">
+          <span class="mr-2">⚙️</span>Settings
+        </button>
+      </div>
+    </nav>
+
+    <!-- Content Area -->
+    <main class="flex-1 overflow-hidden">
+      <!-- Email Client Tab -->
+      <div id="content-email" class="tab-content h-full">
+        <div class="flex-1 flex flex-col bg-white h-full">
+          <iframe src="http://localhost:8888" class="w-full h-full border-0"></iframe>
+        </div>
+      </div>
+
+      <!-- AI Chat Tab (Open-WebUI: GPT-4, Claude, Stable Diffusion, etc.) -->
+      <div id="content-chat" class="tab-content h-full bg-gray-100">
+        <iframe src="http://localhost:8080" class="w-full h-full border-0" allow="camera; microphone; clipboard-read; clipboard-write"></iframe>
+      </div>
+
+      <!-- Settings Tab -->
+      <div id="content-settings" class="tab-content h-full bg-gray-100">
+        <div class="max-w-4xl mx-auto p-8 overflow-y-auto h-full">
+          <div class="bg-white rounded-lg shadow-md p-6">
+            <h2 class="text-2xl font-bold text-gray-900 mb-6">Email Filter Settings</h2>
+
+            <div class="mb-6">
+              <h3 class="text-lg font-semibold mb-2">Allowed Domains</h3>
+              <p class="text-sm text-gray-600 mb-3">Only process emails from these domains</p>
+              <div class="flex flex-wrap gap-2 mb-4">
+                <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">chilis.com</span>
+                <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">brinker.com</span>
+                <span class="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">hotschedules.com</span>
+              </div>
+            </div>
+
+            <div class="mb-6">
+              <h3 class="text-lg font-semibold mb-2">Blocked Domains</h3>
+              <p class="text-sm text-gray-600 mb-3">Never process emails from these domains</p>
+              <div class="flex flex-wrap gap-2 mb-4">
+                <span class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm">spam.com</span>
+                <span class="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm">marketing.com</span>
+              </div>
+            </div>
+
+            <div class="pt-6 border-t">
+              <button class="px-6 py-3 bg-blue-600 text-white rounded-md font-medium hover:bg-blue-700">
+                Save Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    function switchTab(tab) {
+      // Hide all content
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => {
+        el.classList.remove('bg-gray-900', 'text-white', 'border-t-2', 'border-blue-500');
+        el.classList.add('text-gray-400');
+      });
+
+      // Show selected content
+      document.getElementById('content-' + tab).classList.add('active');
+      document.getElementById('tab-' + tab).classList.remove('text-gray-400');
+      document.getElementById('tab-' + tab).classList.add('bg-gray-900', 'text-white', 'border-t-2', 'border-blue-500');
+    }
+
+    // Default to email tab
+    switchTab('email');
+  </script>
+</body>
+</html>

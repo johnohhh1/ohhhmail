@@ -24,10 +24,11 @@ CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload
 FROM base AS production
 ENV ENVIRONMENT=production
 COPY src/ ./src/
-COPY shared/ ./shared/
 
-# Create non-root user
-RUN useradd -m -u 1000 aubs && chown -R aubs:aubs /app
+# Create non-root user and prepare shared directory
+RUN useradd -m -u 1000 aubs && \
+    mkdir -p /app/shared && \
+    chown -R aubs:aubs /app
 USER aubs
 
 # Health check

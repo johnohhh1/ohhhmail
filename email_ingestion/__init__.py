@@ -8,7 +8,7 @@ parses emails, extracts attachments, and forwards data to AUBS (Anthropic Univer
 __version__ = "1.0.0"
 __author__ = "OhhhMail Team"
 
-from .config import Settings
-from .processor import EmailProcessor
+from config import Settings
+from processor import EmailProcessor
 
 __all__ = ["Settings", "EmailProcessor"]

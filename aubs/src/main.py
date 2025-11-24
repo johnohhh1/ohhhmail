@@ -13,15 +13,17 @@ from uuid import UUID
 # Add parent directory to path for shared imports
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from fastapi import FastAPI, HTTPException, status, BackgroundTasks
+from fastapi import FastAPI, HTTPException, status, BackgroundTasks, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel
 import structlog
 from prometheus_client import Counter, Histogram, generate_latest
 from contextlib import asynccontextmanager
 
 from src.config import settings
-from src.orchestrator import AUBSOrchestrator
+from src.simple_orchestrator import SimpleOrchestrator
+from src.chat import AUBSChatService
 from shared.models import EmailData, Execution, ExecutionStatus
 
 # Configure structured logging
@@ -63,25 +65,33 @@ ACTION_CREATED_COUNTER = Counter(
     ["action_type"]
 )
 
-# Global orchestrator instance
-orchestrator: Optional[AUBSOrchestrator] = None
+# Global orchestrator and chat service instances
+orchestrator: Optional[SimpleOrchestrator] = None
+chat_service: Optional[AUBSChatService] = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup and shutdown"""
-    global orchestrator
+    global orchestrator, chat_service
 
     # Startup
-    logger.info("Starting AUBS orchestration service", version="2.1.0")
-    orchestrator = AUBSOrchestrator(settings)
+    logger.info("Starting Simple AUBS service (NO Dolphin)", version="2.1.0")
+    orchestrator = SimpleOrchestrator(settings)
     await orchestrator.initialize()
-    logger.info("AUBS orchestrator initialized successfully")
+    logger.info("Simple orchestrator initialized successfully")
+
+    # Initialize chat service
+    chat_service = AUBSChatService(settings, orchestrator)
+    await chat_service.initialize()
+    logger.info("AUBS chat service initialized successfully")
 
     yield
 
     # Shutdown
     logger.info("Shutting down AUBS orchestration service")
+    if chat_service:
+        await chat_service.shutdown()
     if orchestrator:
         await orchestrator.shutdown()
     logger.info("AUBS orchestrator shutdown complete")
@@ -113,8 +123,8 @@ async def health_check():
         "service": "aubs",
         "version": "2.1.0",
         "timestamp": datetime.utcnow().isoformat(),
-        "dolphin_connected": orchestrator.dolphin_healthy if orchestrator else False,
-        "nats_connected": orchestrator.nats_connected if orchestrator else False
+        "nats_connected": orchestrator.nats_connected if orchestrator else False,
+        "chat_service_active": chat_service is not None
     }
 
 
@@ -328,6 +338,577 @@ async def get_config():
             for name, config in settings.get_agent_configs().items()
         }
     }
+
+
+# ========== Chat API Endpoints ==========
+
+class ChatRequest(BaseModel):
+    """Chat request model"""
+    message: str
+    session_id: Optional[UUID] = None
+    stream: bool = False
+
+
+class ChatResponse(BaseModel):
+    """Chat response model"""
+    session_id: UUID
+    message: str
+    timestamp: datetime
+
+
+@app.post("/api/chat", status_code=status.HTTP_200_OK)
+async def chat(request: ChatRequest):
+    """
+    Send chat message and get response
+
+    Args:
+        request: Chat request with message and optional session_id
+
+    Returns:
+        Chat response or streaming response
+    """
+    if not chat_service:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Chat service not available"
+        )
+
+    log = logger.bind(message_length=len(request.message))
+
+    try:
+        # Get or create session
+        if request.session_id:
+            session = await chat_service.get_session(request.session_id)
+            if not session:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Session {request.session_id} not found"
+                )
+            session_id = request.session_id
+        else:
+            session = await chat_service.create_session()
+            session_id = session.id
+
+        log = log.bind(session_id=str(session_id))
+        log.info("Processing chat message")
+
+        if request.stream:
+            # Streaming response
+            async def generate_stream():
+                async for chunk in chat_service.chat(session_id, request.message, stream=True):
+                    # Send as Server-Sent Events
+                    yield f"data: {chunk}\n\n"
+
+            return StreamingResponse(
+                generate_stream(),
+                media_type="text/event-stream",
+                headers={
+                    "Cache-Control": "no-cache",
+                    "X-Session-ID": str(session_id)
+                }
+            )
+        else:
+            # Non-streaming response
+            response_text = ""
+            async for chunk in chat_service.chat(session_id, request.message, stream=False):
+                response_text = chunk
+
+            log.info("Chat response generated", response_length=len(response_text))
+
+            return ChatResponse(
+                session_id=session_id,
+                message=response_text,
+                timestamp=datetime.utcnow()
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("Chat request failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Chat request failed: {str(e)}"
+        )
+
+
+@app.get("/api/chat/history/{session_id}")
+async def get_chat_history(session_id: UUID, limit: int = 50):
+    """
+    Get chat history for a session
+
+    Args:
+        session_id: Chat session ID
+        limit: Maximum messages to return
+
+    Returns:
+        Chat message history
+    """
+    if not chat_service:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Chat service not available"
+        )
+
+    log = logger.bind(session_id=str(session_id))
+
+    try:
+        session = await chat_service.get_session(session_id)
+        if not session:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session {session_id} not found"
+            )
+
+        messages = await chat_service.get_chat_history(session_id, limit=limit)
+
+        log.info("Retrieved chat history", message_count=len(messages))
+
+        return {
+            "session_id": str(session_id),
+            "message_count": len(messages),
+            "messages": [
+                {
+                    "id": str(msg.id),
+                    "role": msg.role,
+                    "content": msg.content,
+                    "timestamp": msg.timestamp.isoformat(),
+                    "metadata": msg.metadata
+                }
+                for msg in messages
+            ]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("Failed to retrieve chat history", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve chat history: {str(e)}"
+        )
+
+
+@app.get("/api/chat/sessions")
+async def list_chat_sessions(user_id: str = "default", limit: int = 20):
+    """
+    List chat sessions for a user
+
+    Args:
+        user_id: User identifier
+        limit: Maximum sessions to return
+
+    Returns:
+        List of chat sessions
+    """
+    if not chat_service:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Chat service not available"
+        )
+
+    try:
+        sessions = await chat_service.list_sessions(user_id=user_id, limit=limit)
+
+        logger.info("Retrieved chat sessions", session_count=len(sessions), user_id=user_id)
+
+        return {
+            "user_id": user_id,
+            "session_count": len(sessions),
+            "sessions": [
+                {
+                    "id": str(session.id),
+                    "started_at": session.started_at.isoformat(),
+                    "last_activity": session.last_activity.isoformat(),
+                    "message_count": session.message_count,
+                    "metadata": session.metadata
+                }
+                for session in sessions
+            ]
+        }
+
+    except Exception as e:
+        logger.error("Failed to list chat sessions", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to list chat sessions: {str(e)}"
+        )
+
+
+@app.post("/api/chat/sessions", status_code=status.HTTP_201_CREATED)
+async def create_chat_session(user_id: str = "default"):
+    """
+    Create a new chat session
+
+    Args:
+        user_id: User identifier
+
+    Returns:
+        Created session information
+    """
+    if not chat_service:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Chat service not available"
+        )
+
+    try:
+        session = await chat_service.create_session(user_id=user_id)
+
+        logger.info("Chat session created", session_id=str(session.id), user_id=user_id)
+
+        return {
+            "id": str(session.id),
+            "user_id": session.user_id,
+            "started_at": session.started_at.isoformat(),
+            "message_count": session.message_count
+        }
+
+    except Exception as e:
+        logger.error("Failed to create chat session", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create chat session: {str(e)}"
+        )
+
+
+@app.delete("/api/chat/sessions/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_chat_session(session_id: UUID):
+    """
+    Delete a chat session
+
+    Args:
+        session_id: Session ID to delete
+
+    Returns:
+        No content on success
+    """
+    if not chat_service:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Chat service not available"
+        )
+
+    try:
+        deleted = await chat_service.delete_session(session_id)
+
+        if not deleted:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Session {session_id} not found"
+            )
+
+        logger.info("Chat session deleted", session_id=str(session_id))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("Failed to delete chat session", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete chat session: {str(e)}"
+        )
+
+
+@app.get("/api/chat/context")
+async def get_operational_context():
+    """
+    Get operational context summary
+
+    Returns:
+        Summary of current operational state
+    """
+    if not chat_service:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Chat service not available"
+        )
+
+    try:
+        context_summary = await chat_service.get_context_summary()
+
+        logger.info("Retrieved operational context summary")
+
+        return context_summary
+
+    except Exception as e:
+        logger.error("Failed to retrieve operational context", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve operational context: {str(e)}"
+        )
+
+
+@app.websocket("/ws/chat/{session_id}")
+async def chat_websocket(websocket: WebSocket, session_id: UUID):
+    """
+    WebSocket endpoint for real-time chat streaming
+
+    Args:
+        websocket: WebSocket connection
+        session_id: Chat session ID
+    """
+    if not chat_service:
+        await websocket.close(code=1011, reason="Chat service not available")
+        return
+
+    await websocket.accept()
+
+    log = logger.bind(session_id=str(session_id), transport="websocket")
+    log.info("WebSocket chat connection established")
+
+    try:
+        # Verify session exists
+        session = await chat_service.get_session(session_id)
+        if not session:
+            await websocket.send_json({
+                "type": "error",
+                "message": f"Session {session_id} not found"
+            })
+            await websocket.close(code=1008, reason="Session not found")
+            return
+
+        while True:
+            # Receive message from client
+            data = await websocket.receive_json()
+
+            message = data.get("message")
+            if not message:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": "Message is required"
+                })
+                continue
+
+            log.info("WebSocket message received", message_length=len(message))
+
+            # Send acknowledgment
+            await websocket.send_json({
+                "type": "ack",
+                "timestamp": datetime.utcnow().isoformat()
+            })
+
+            # Stream response
+            try:
+                async for chunk in chat_service.chat(session_id, message, stream=True):
+                    await websocket.send_json({
+                        "type": "chunk",
+                        "content": chunk
+                    })
+
+                # Send completion marker
+                await websocket.send_json({
+                    "type": "complete",
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+
+            except Exception as e:
+                log.error("Error processing chat message", error=str(e))
+                await websocket.send_json({
+                    "type": "error",
+                    "message": f"Error processing message: {str(e)}"
+                })
+
+    except WebSocketDisconnect:
+        log.info("WebSocket chat connection closed")
+    except Exception as e:
+        log.error("WebSocket error", error=str(e))
+        try:
+            await websocket.close(code=1011, reason="Internal error")
+        except:
+            pass
+
+
+# ========== Settings API Endpoints ==========
+
+class SettingsUpdate(BaseModel):
+    """Settings update request model"""
+    email_filter: Optional[dict] = None
+    models: Optional[dict] = None
+    thresholds: Optional[dict] = None
+    notifications: Optional[dict] = None
+    integrations: Optional[dict] = None
+
+
+@app.get("/api/settings")
+async def get_settings():
+    """
+    Get all system settings including email filtering
+
+    Returns:
+        Complete system settings
+    """
+    try:
+        # Load email ingestion settings from environment
+        import os
+        from dotenv import load_dotenv
+
+        # Reload .env file to get latest values
+        env_path = os.path.join(os.path.dirname(__file__), "../../infrastructure/docker/.env")
+        load_dotenv(env_path, override=True)
+
+        # Parse email filtering settings
+        def parse_list(value, default=[]):
+            if not value:
+                return default
+            return [item.strip() for item in value.split(",") if item.strip()]
+
+        email_filter = {
+            "allowed_domains": parse_list(os.getenv("ALLOWED_DOMAINS", "")),
+            "allowed_senders": parse_list(os.getenv("ALLOWED_SENDERS", "")),
+            "blocked_domains": parse_list(os.getenv("BLOCKED_DOMAINS", "")),
+            "blocked_senders": parse_list(os.getenv("BLOCKED_SENDERS", "")),
+            "polling_interval": int(os.getenv("EMAIL_POLLING_INTERVAL", "60"))
+        }
+
+        # Get agent configurations
+        agent_configs = settings.get_agent_configs()
+        models = {}
+        for agent_name, config in agent_configs.items():
+            models[agent_name] = {
+                "provider": config.provider,
+                "model_name": config.model,
+                "timeout": config.timeout,
+                "gpu": config.gpu,
+                "fallback_allowed": config.fallback_allowed
+            }
+
+        # Placeholder for other settings
+        thresholds = {
+            "high_confidence": settings.confidence_threshold,
+            "medium_confidence": 0.7,
+            "low_confidence": 0.5,
+            "auto_process_threshold": settings.confidence_threshold
+        }
+
+        notifications = {
+            "email_notifications": False,
+            "slack_notifications": False,
+            "notify_on_high_confidence": True,
+            "notify_on_low_confidence": True,
+            "notify_on_errors": True
+        }
+
+        integrations = {
+            "gmail_enabled": True,
+            "calendar_sync": False,
+            "task_manager_integration": False
+        }
+
+        logger.info("Retrieved system settings")
+
+        return {
+            "settings": {
+                "email_filter": email_filter,
+                "models": models,
+                "thresholds": thresholds,
+                "notifications": notifications,
+                "integrations": integrations
+            }
+        }
+
+    except Exception as e:
+        logger.error("Failed to retrieve settings", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve settings: {str(e)}"
+        )
+
+
+@app.put("/api/settings")
+async def update_settings(update: SettingsUpdate):
+    """
+    Update system settings
+
+    Args:
+        update: Settings to update
+
+    Returns:
+        Updated settings confirmation
+    """
+    try:
+        import os
+        from dotenv import load_dotenv, set_key
+
+        env_path = os.path.join(os.path.dirname(__file__), "../../infrastructure/docker/.env")
+
+        # Update email filter settings if provided
+        if update.email_filter:
+            email_filter = update.email_filter
+
+            if "allowed_domains" in email_filter:
+                domains = ",".join(email_filter["allowed_domains"])
+                set_key(env_path, "ALLOWED_DOMAINS", domains)
+
+            if "allowed_senders" in email_filter:
+                senders = ",".join(email_filter["allowed_senders"])
+                set_key(env_path, "ALLOWED_SENDERS", senders)
+
+            if "blocked_domains" in email_filter:
+                domains = ",".join(email_filter["blocked_domains"])
+                set_key(env_path, "BLOCKED_DOMAINS", domains)
+
+            if "blocked_senders" in email_filter:
+                senders = ",".join(email_filter["blocked_senders"])
+                set_key(env_path, "BLOCKED_SENDERS", senders)
+
+            if "polling_interval" in email_filter:
+                set_key(env_path, "EMAIL_POLLING_INTERVAL", str(email_filter["polling_interval"]))
+
+        logger.info("Settings updated successfully")
+
+        return {
+            "message": "Settings updated successfully",
+            "note": "Some settings require service restart to take effect"
+        }
+
+    except Exception as e:
+        logger.error("Failed to update settings", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to update settings: {str(e)}"
+        )
+
+
+@app.get("/api/models/available")
+async def get_available_models():
+    """
+    Get available models for each provider
+
+    Returns:
+        Dictionary of available models by provider
+    """
+    try:
+        models = {
+            "ollama": [
+                "llama3.2:8b-instruct",
+                "llama3.2:3b",
+                "llama3.2-vision:11b",
+                "mistral:7b",
+                "phi3:mini",
+                "qwen2.5:7b"
+            ],
+            "openai": [
+                "gpt-4o",
+                "gpt-4o-mini",
+                "gpt-4-turbo",
+                "gpt-3.5-turbo"
+            ],
+            "anthropic": [
+                "claude-sonnet-4",
+                "claude-3-5-sonnet-20241022",
+                "claude-3-opus-20240229",
+                "claude-3-haiku-20240307"
+            ]
+        }
+
+        return {"models": models}
+
+    except Exception as e:
+        logger.error("Failed to retrieve available models", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to retrieve available models: {str(e)}"
+        )
 
 
 @app.exception_handler(Exception)

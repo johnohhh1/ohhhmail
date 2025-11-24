@@ -11,6 +11,7 @@ export { Dashboard } from './Dashboard';
 export { CalendarView } from './CalendarView';
 export { AgentMonitor } from './AgentMonitor';
 export { Settings } from './Settings';
+export { ChatWithAUBS } from './ChatWithAUBS';
 
 // Re-export types
 export type {
