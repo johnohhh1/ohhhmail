@@ -1,0 +1,140 @@
+{
+  "customTabs": [
+    {
+      "id": "dashboard",
+      "name": "Dashboard",
+      "icon": "home",
+      "component": "Dashboard",
+      "path": "/dashboard",
+      "enabled": true,
+      "order": 1
+    },
+    {
+      "id": "emails",
+      "name": "Emails",
+      "icon": "mail",
+      "component": "EmailDashboard",
+      "path": "/emails",
+      "enabled": true,
+      "order": 2,
+      "features": [
+        "inbox",
+        "processed",
+        "agent-outputs",
+        "quick-actions"
+      ]
+    },
+    {
+      "id": "tasks",
+      "name": "Tasks",
+      "icon": "check-square",
+      "component": "TaskManager",
+      "path": "/tasks",
+      "enabled": true,
+      "order": 3,
+      "features": [
+        "create-task",
+        "assign",
+        "priorities",
+        "due-dates",
+        "filters"
+      ]
+    },
+    {
+      "id": "calendar",
+      "name": "Calendar",
+      "icon": "calendar",
+      "component": "CalendarView",
+      "path": "/calendar",
+      "enabled": true,
+      "order": 4,
+      "features": [
+        "events",
+        "deadlines",
+        "scheduling",
+        "reminders"
+      ]
+    },
+    {
+      "id": "debug",
+      "name": "Debug",
+      "icon": "bug",
+      "component": "UITARSDebugPanel",
+      "path": "/debug",
+      "enabled": true,
+      "order": 5,
+      "features": [
+        "execution-timeline",
+        "agent-decisions",
+        "screenshots",
+        "dag-visualization",
+        "replay"
+      ]
+    },
+    {
+      "id": "analytics",
+      "name": "Analytics",
+      "icon": "chart-bar",
+      "component": "Analytics",
+      "path": "/analytics",
+      "enabled": true,
+      "order": 6,
+      "features": [
+        "performance-metrics",
+        "agent-stats",
+        "email-volume",
+        "response-times",
+        "accuracy"
+      ]
+    },
+    {
+      "id": "agents",
+      "name": "Agents",
+      "icon": "cpu",
+      "component": "AgentMonitor",
+      "path": "/agents",
+      "enabled": true,
+      "order": 7,
+      "features": [
+        "agent-status",
+        "model-selection",
+        "performance",
+        "logs"
+      ]
+    },
+    {
+      "id": "settings",
+      "name": "Settings",
+      "icon": "settings",
+      "component": "Settings",
+      "path": "/settings",
+      "enabled": true,
+      "order": 8,
+      "features": [
+        "model-config",
+        "thresholds",
+        "notifications",
+        "integrations"
+      ]
+    }
+  ],
+  "features": {
+    "realtime": true,
+    "websockets": true,
+    "notifications": true,
+    "darkMode": true,
+    "autoRefresh": true
+  },
+  "integrations": {
+    "dolphin": {
+      "url": "http://dolphin-server:12345",
+      "ws": "ws://dolphin-server:12345/ws"
+    },
+    "aubs": {
+      "url": "http://aubs:5000"
+    },
+    "email": {
+      "url": "http://email-ingestion:8001"
+    }
+  }
+}

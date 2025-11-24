@@ -64,10 +64,10 @@ echo ============================================================
 echo ChiliHead OpsManager Services:
 echo ============================================================
 echo.
-echo Open-WebUI:        http://localhost:3000
+echo Open-WebUI:        http://localhost:3040
 echo Dolphin Scheduler: http://localhost:12345
 echo AUBS API:          http://localhost:5000
-echo UI-TARS:           http://localhost:8080 (embedded in Open-WebUI)
+echo Email Ingestion:   http://localhost:8001
 echo Grafana:           http://localhost:3001 (if monitoring enabled)
 echo.
 echo ============================================================
@@ -78,7 +78,7 @@ echo.
 echo Press any key to open Open-WebUI in your browser...
 pause >nul
 
-start http://localhost:3000
+start http://localhost:3040
 
 echo.
 echo Services are running!

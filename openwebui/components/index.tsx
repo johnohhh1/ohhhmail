@@ -7,6 +7,10 @@ export { UITARSDebugPanel } from './UITARSDebugPanel';
 export { EmailDashboard } from './EmailDashboard';
 export { TaskManager } from './TaskManager';
 export { Analytics } from './Analytics';
+export { Dashboard } from './Dashboard';
+export { CalendarView } from './CalendarView';
+export { AgentMonitor } from './AgentMonitor';
+export { Settings } from './Settings';
 
 // Re-export types
 export type {

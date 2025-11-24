@@ -28,11 +28,11 @@ if errorlevel 1 (
 )
 
 echo Checking Open-WebUI...
-curl -s http://localhost:3000 >nul 2>&1
+curl -s http://localhost:3040 >nul 2>&1
 if errorlevel 1 (
     echo [X] Open-WebUI: Not responding
 ) else (
-    echo [OK] Open-WebUI: Running at http://localhost:3000
+    echo [OK] Open-WebUI: Running at http://localhost:3040
 )
 
 echo Checking Dolphin...
