@@ -123,6 +123,9 @@ services:
       - LOG_LEVEL=INFO
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # Gmail IMAP credentials for v2 email tools
+      - GMAIL_EMAIL=${GMAIL_EMAIL}
+      - GMAIL_APP_PASSWORD=${GMAIL_APP_PASSWORD}
     volumes:
       - ./../../aubs/src:/app/src:ro
       - ./../../shared:/app/shared:ro
