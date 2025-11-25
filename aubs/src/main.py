@@ -137,10 +137,11 @@ async def readiness_check():
             detail="Orchestrator not initialized"
         )
 
-    if not orchestrator.dolphin_healthy:
+    # Check if analyzer is initialized (core dependency)
+    if not orchestrator.analyzer:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Dolphin server not reachable"
+            detail="Email analyzer not initialized"
         )
 
     return {"status": "ready"}
@@ -338,6 +339,141 @@ async def get_config():
             for name, config in settings.get_agent_configs().items()
         }
     }
+
+
+# ========== Email Tools API Endpoints (v2) ==========
+
+from src.tools.email_tools import get_emails, get_email_by_id, triage_email
+
+
+class EmailListRequest(BaseModel):
+    """Email list request parameters"""
+    limit: int = 20
+    filter_type: str = "ALL"
+    days_back: int = 7
+    sender_filter: Optional[str] = None
+    subject_filter: Optional[str] = None
+
+
+@app.get("/api/emails", status_code=status.HTTP_200_OK)
+async def list_emails(
+    limit: int = 20,
+    filter_type: str = "ALL",
+    days_back: int = 7,
+    sender_filter: Optional[str] = None,
+    subject_filter: Optional[str] = None
+):
+    """
+    Get emails from Gmail via direct IMAP
+
+    Args:
+        limit: Maximum emails to return (default 20)
+        filter_type: IMAP filter - ALL, UNSEEN, SEEN, FLAGGED
+        days_back: Only get emails from last N days
+        sender_filter: Filter by sender email/domain
+        subject_filter: Filter by subject keywords
+
+    Returns:
+        List of emails with id, subject, sender, date, snippet
+    """
+    log = logger.bind(limit=limit, filter_type=filter_type)
+    log.info("API: Fetching emails")
+
+    try:
+        emails = get_emails(
+            limit=limit,
+            filter_type=filter_type,
+            days_back=days_back,
+            sender_filter=sender_filter,
+            subject_filter=subject_filter
+        )
+
+        log.info(f"API: Returning {len(emails)} emails")
+
+        return {
+            "count": len(emails),
+            "emails": emails
+        }
+
+    except ValueError as e:
+        log.error("Email fetch failed - configuration error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e)
+        )
+    except Exception as e:
+        log.error("Email fetch failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch emails: {str(e)}"
+        )
+
+
+@app.get("/api/emails/{email_id}", status_code=status.HTTP_200_OK)
+async def get_single_email(email_id: str):
+    """
+    Get full email content by IMAP ID
+
+    Args:
+        email_id: IMAP email ID
+
+    Returns:
+        Full email with body, headers, attachments
+    """
+    log = logger.bind(email_id=email_id)
+    log.info("API: Fetching email by ID")
+
+    try:
+        email_content = get_email_by_id(email_id)
+
+        if not email_content:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Email {email_id} not found"
+            )
+
+        return email_content
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        log.error("Email fetch failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch email: {str(e)}"
+        )
+
+
+@app.post("/api/emails/{email_id}/triage", status_code=status.HTTP_200_OK)
+async def triage_single_email(email_id: str):
+    """
+    AI triage of a specific email
+
+    Args:
+        email_id: IMAP email ID
+
+    Returns:
+        Triage result with priority, category, suggested actions
+    """
+    log = logger.bind(email_id=email_id)
+    log.info("API: Triaging email")
+
+    try:
+        result = await triage_email(email_id)
+        log.info("API: Triage completed", urgency=result.get("urgency_score"))
+        return result
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        log.error("Triage failed", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to triage email: {str(e)}"
+        )
 
 
 # ========== Chat API Endpoints ==========
